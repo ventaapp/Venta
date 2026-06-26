@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vante</string>
+    <string name="title_activity_main">Vante</string>
+    <string name="package_name">com.vante.app</string>
+    <string name="custom_url_scheme">com.vante.app</string>
+</resources>

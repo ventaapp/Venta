@@ -1,60 +1,63 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Home, User, Bell, Settings } from 'lucide-react';
+import { Home, Zap, Medal, User } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 const navItems = [
   { id: 'home', label: 'Ana Sayfa', icon: Home, path: '/feed' },
+  { id: 'plus-one', label: '+1', icon: Zap, path: '/plus-one' },
+  { id: 'badges', label: 'Rozetler', icon: Medal, path: '/badges' },
   { id: 'profile', label: 'Profil', icon: User, path: '/garage' },
-  { id: 'notifications', label: 'Bildirimler', icon: Bell, path: '/notifications' },
-  { id: 'settings', label: 'Ayarlar', icon: Settings, path: '/settings' },
 ];
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setCurrentTab, notifications } = useStore();
-  
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const { setCurrentTab } = useStore();
 
-  const handleNav = (item: typeof navItems[0]) => {
+  const handleNav = (item: (typeof navItems)[number]) => {
     setCurrentTab(item.id);
     navigate(item.path);
   };
 
   return (
-    <div className="bottom-nav px-4 py-2">
-      <div className="flex items-center justify-around">
+    <nav className="bottom-nav">
+      <div className="bottom-nav-inner flex items-stretch justify-between">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-          
+
           return (
             <motion.button
               key={item.id}
+              type="button"
               onClick={() => handleNav(item)}
-              className="flex flex-col items-center justify-center py-2 px-3 relative"
-              whileTap={{ scale: 0.9 }}
+              className="relative flex flex-1 flex-col items-center justify-center min-h-[50px] py-2 px-1"
+              whileTap={{ scale: 0.96 }}
+              aria-current={isActive ? 'page' : undefined}
             >
-              <div className="relative">
-                <Icon
-                  size={22}
-                  strokeWidth={isActive ? 2.5 : 1.5}
-                  style={{ color: isActive ? '#fff' : '#555' }}
+              {isActive && (
+                <motion.div
+                  layoutId="bottom-nav-active-pill"
+                  className="bottom-nav-active-pill absolute inset-x-1 inset-y-1"
+                  transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                 />
-                {/* Notification badge */}
-                {item.id === 'notifications' && unreadCount > 0 && (
-                  <div
-                    className="absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
-                    style={{ background: '#ff3b30', color: '#fff', padding: '0 4px' }}
-                  >
-                    {unreadCount}
-                  </div>
-                )}
-              </div>
+              )}
+
+              <Icon
+                size={20}
+                strokeWidth={isActive ? 2.1 : 1.75}
+                className="relative z-10 shrink-0 transition-colors duration-200"
+                style={{
+                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.42)',
+                }}
+              />
               <span
-                className="text-[10px] mt-1 font-medium"
-                style={{ color: isActive ? '#fff' : '#555' }}
+                className="relative z-10 mt-[5px] text-[10px] font-medium leading-none transition-colors duration-200"
+                style={{
+                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.42)',
+                  fontWeight: isActive ? 600 : 500,
+                }}
               >
                 {item.label}
               </span>
@@ -62,6 +65,6 @@ export default function BottomNav() {
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }

@@ -7,7 +7,8 @@ import BottomNav from '../components/BottomNav';
 // Firebase bağlantıları
 import { auth, db } from '../config/firebase';
 import { signOut, deleteUser } from 'firebase/auth';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
+import { deleteUserData } from '../lib/accountDeletion';
 
 interface SettingItem {
   id: string;
@@ -40,13 +41,9 @@ export default function SettingsScreen() {
         if (window.confirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) {
           try {
             if (auth.currentUser && user?.uid) {
-              // 1. Önce Firestore'daki verilerini sil
-              await deleteDoc(doc(db, 'users', user.uid));
-              
-              // 2. Firebase Auth'tan kullanıcıyı sil
+              await deleteUserData(user.uid);
               await deleteUser(auth.currentUser);
-              
-              logout(); // Store'u temizle ve Login'e at
+              logout();
             }
           } catch (error: any) {
             // Firebase güvenlik önlemi: Hesap silmek için "yeni" giriş yapmış olmak gerekir
@@ -61,12 +58,27 @@ export default function SettingsScreen() {
         break;
 
       case 'notifications':
-        // Butona direkt tıklanırsa çalışacak (Zaten Toggle'ın onClick'i de bunu çağırıyor)
         handleToggleNotifications();
         break;
 
+      case 'terms':
+        window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
+        break;
+
+      case 'privacy':
+        window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
+        break;
+
+      case 'profile_edit':
+        window.location.href = '/garage';
+        break;
+
+      case 'lane_preferences':
+        window.location.href = '/garage';
+        break;
+
       default:
-        console.log(`Navigate to ${id}`);
+        break;
     }
   };
 
@@ -117,6 +129,11 @@ export default function SettingsScreen() {
     {
       id: 'terms',
       label: 'İlkeler ve Yasal Koşullar',
+      icon: <Info size={18} style={{ color: '#888' }} />,
+    },
+    {
+      id: 'privacy',
+      label: 'Gizlilik Politikası',
       icon: <Info size={18} style={{ color: '#888' }} />,
     },
     {

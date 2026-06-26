@@ -1,17 +1,21 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music } from 'lucide-react'; 
+import { Music, Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import BottomNav from '../components/BottomNav';
+import { FeedSkeleton } from '../components/skeletons';
 
-// Firebase (deleteDoc eklendi)
+// Firebase
 import { db } from '../config/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { recordMasallah } from '../lib/badges';
 
 export type FeedVehicle = {
-  id: string; 
+  id: string;
   userName: string;
   userHandle: string;
+  photoURL?: string;
   imageUrl: string;
   category: string;
   bio: string;
@@ -62,10 +66,12 @@ function ParticleBurst({ originX, originY, onComplete }: { originX: number; orig
 
 export default function MainFeedScreen() {
   const { user } = useStore();
-  
+  const navigate = useNavigate();
+
   const [feedVehicles, setFeedVehicles] = useState<FeedVehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [particles, setParticles] = useState<{ id: number; originX: number; originY: number }[]>([]);
+  const [feedTab, setFeedTab] = useState<'explore' | 'following'>('explore');
 
   // FIREBASE'DEN ARAÇLARI ÇEK
   useEffect(() => {
@@ -83,9 +89,10 @@ export default function MainFeedScreen() {
               id: docSnap.id,
               userName: data.displayName || 'Vante Sürücüsü',
               userHandle: `@${(data.displayName || 'vante').toLowerCase().replace(/\s/g, '')}`,
+              photoURL: data.photoURL || '',
               imageUrl: data.vehiclePhotos[0],
               category: data.vehicleCategory || data.lane || 'Otomobil',
-              bio: data.bio || '',
+              bio: data.vehicleDescription || data.bio || '',
               song: data.vehicleSong || 'Vante Original - Gece Sürüşü', 
             });
           }
@@ -101,34 +108,6 @@ export default function MainFeedScreen() {
     fetchVehicles();
   }, [user?.uid]);
 
-
-  // 🗑 ESKİ ÇÖP BOTLARI TEMİZLEME MOTORU (Çöp Kovası)
-  const clearOldBots = async () => {
-    if (!window.confirm("Eski sahte araçlar veritabanından tamamen silinecek. Emin misin?")) return;
-    
-    setIsLoading(true);
-    try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const deletePromises: any[] = [];
-      
-      querySnapshot.forEach((document) => {
-        // Sadece ID'sinde "bot_user" geçen sahte hesapları bul ve imha et
-        if (document.id.includes('bot_user')) {
-          deletePromises.push(deleteDoc(doc(db, 'users', document.id)));
-        }
-      });
-
-      await Promise.all(deletePromises);
-      alert(`${deletePromises.length} adet eski araç başarıyla yok edildi! 🧹`);
-      window.location.reload(); 
-    } catch (err) {
-      console.error("Silme hatası:", err);
-      alert("Silinirken bir hata oluştu.");
-      setIsLoading(false);
-    }
-  };
-
-  // SPOTIFY'DA AÇMA FONKSİYONU
   const openInSpotify = (songName: string) => {
     const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(songName)}`;
     window.open(spotifyUrl, '_blank');
@@ -142,12 +121,7 @@ export default function MainFeedScreen() {
     setParticles((prev) => [...prev, { id: Date.now(), originX, originY }]);
 
     try {
-      await addDoc(collection(db, 'interactions'), {
-        from: user.uid,
-        to: targetId,
-        type: 'like',
-        timestamp: serverTimestamp(),
-      });
+      await recordMasallah(user.uid, targetId, 'like');
     } catch (err) {
       console.error("Maşallah kaydedilemedi:", err);
     }
@@ -157,85 +131,145 @@ export default function MainFeedScreen() {
     setParticles((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+// "Takip Edilenler" sekmesindeysek, aracın sahibinin id'si bizim "following" dizimizde var mı diye filtreliyoruz.
+const displayedVehicles = feedTab === 'explore' 
+? feedVehicles 
+: feedVehicles.filter(vehicle => user?.following?.includes(vehicle.id));
+
+  if (isLoading) {
+    return (
+      <div className="vante-container min-h-screen flex flex-col relative" style={{ background: '#000000' }}>
+        <FeedSkeleton withBottomNav={false} />
+        <BottomNav />
+      </div>
+    );
+  }
+
   return (
     <div className="vante-container min-h-screen flex flex-col relative" style={{ background: '#000000' }}>
-      
+
       <div className="flex-1 overflow-y-auto pb-24 no-scrollbar">
-        
-        {/* GEÇİCİ BOT BUTONLARI */}
-        <div className="pt-20 px-6 mb-4 flex flex-col gap-3">
-          
-          <button 
-            onClick={clearOldBots}
-            className="w-full bg-red-900/40 text-red-400 border border-red-900 rounded-xl py-3 text-sm font-medium hover:bg-red-900/60 transition-colors shadow-lg"
+
+        {/* Üst sekmeler ve bildirim */}
+        <div className="sticky top-0 z-20 flex items-center justify-between px-5 pt-12 pb-4 bg-black">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFeedTab('explore')}
+              className="rounded-full px-4 py-2 text-[13px] font-medium transition-colors"
+              style={{
+                background: feedTab === 'explore' ? '#fff' : '#1a1a1a',
+                color: feedTab === 'explore' ? '#000' : '#888',
+                border: feedTab === 'explore' ? 'none' : '1px solid #222',
+              }}
+            >
+              Keşfet
+            </button>
+            <button
+              type="button"
+              onClick={() => setFeedTab('following')}
+              className="rounded-full px-4 py-2 text-[13px] font-medium transition-colors"
+              style={{
+                background: feedTab === 'following' ? '#fff' : '#1a1a1a',
+                color: feedTab === 'following' ? '#000' : '#888',
+                border: feedTab === 'following' ? 'none' : '1px solid #222',
+              }}
+            >
+              Takip Edilenler
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/notifications')}
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            style={{ background: 'rgba(255,255,255,0.08)' }}
+            aria-label="Bildirimler"
           >
-            🗑 Eski Çöp Verileri Sil
+            <Bell size={16} className="text-white" strokeWidth={2} />
           </button>
-          
         </div>
 
-        {isLoading ? (
-          <div className="h-40 flex items-center justify-center">
-            <p className="text-[#888] animate-pulse">Vante Garajı Yükleniyor...</p>
-          </div>
-        ) : feedVehicles.length === 0 ? (
+        {displayedVehicles.length === 0 ? (
           <div className="h-40 flex flex-col items-center justify-center px-6 text-center">
-            <p className="text-white text-lg mb-2">Garaj Şu An Boş</p>
-            <p className="text-[#888] text-sm">Uygulamaya ilk aracını sen ekle.</p>
+            <p className="text-white text-lg mb-2">
+              {feedTab === 'following' ? 'Takip Ettiğin Kimse Yok' : 'Garaj Şu An Boş'}
+            </p>
+            <p className="text-[#888] text-sm">
+              {feedTab === 'following'
+                ? 'Keşfet sekmesinden yeni sürücüler bulabilirsin.'
+                : 'Uygulamaya ilk aracını sen ekle.'}
+            </p>
           </div>
         ) : (
-          feedVehicles.map((vehicle) => (
-            <div key={vehicle.id} className="pt-4 px-4 border-b border-[#111] pb-10">
-              
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center overflow-hidden">
-                    <span className="text-white font-bold uppercase text-sm">
-                      {vehicle.userName.charAt(0)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-white text-[15px] font-medium">{vehicle.userName}</span>
-                    <span className="text-[#888] text-[13px]">{vehicle.userHandle}</span>
-                  </div>
-                </div>
-                <div className="px-4 py-1.5 rounded-full border border-[#333] bg-[#0a0a0a]">
-                  <span className="text-[#aaa] text-[12px] font-medium">{vehicle.category}</span>
-                </div>
-              </div>
+          displayedVehicles.map((vehicle) => (
+            <div key={vehicle.id} className="px-5 pb-10">
 
-              {vehicle.bio && (
-                <p className="text-[#ccc] text-[14px] mb-4 leading-relaxed">
-                  {vehicle.bio}
-                </p>
-              )}
-
-              <div className="relative w-full aspect-[4/5] rounded-[32px] overflow-hidden mb-6 bg-[#111]">
-                <img 
-                  src={vehicle.imageUrl} 
-                  alt={vehicle.userName} 
-                  className="w-full h-full object-cover"
-                />
-                
+              {/* Post Header */}
+              <div className="flex items-start justify-between mb-3">
                 <div 
-                  onClick={() => openInSpotify(vehicle.song)}
-                  className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-md bg-black/60 border border-white/20 max-w-[85%] cursor-pointer active:scale-95 transition-transform hover:bg-black/80"
+                  onClick={() => navigate(`/user/${vehicle.id}`)}
+                  className="flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
                 >
-                  <Music size={14} className="text-[#1DB954] flex-shrink-0" />
-                  <span className="text-white text-[12px] font-semibold tracking-wide truncate">
-                    {vehicle.song}
-                  </span>
+                  <div className="w-10 h-10 rounded-full bg-[#1a1a1a] flex items-center justify-center overflow-hidden shrink-0">
+                    {vehicle.photoURL ? (
+                      <img src={vehicle.photoURL} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-semibold uppercase text-sm">
+                        {vehicle.userName.charAt(0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-white text-[15px] font-semibold truncate">
+                      {vehicle.userName}
+                    </span>
+                    <span className="text-[#888] text-[13px] truncate">{vehicle.userHandle}</span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex justify-center">
-                <motion.button 
-                  onClick={(e) => handleMasallah(e, vehicle.id)}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-10 py-3 rounded-full flex items-center justify-center transition-colors"
+                <div
+                  className="px-3 py-1.5 rounded-full shrink-0 ml-3"
                   style={{ background: '#1a1a1a', border: '1px solid #222' }}
                 >
-                  <span className="text-[#ddd] text-[14px] font-medium">Maşallah</span>
+                  <span className="text-white text-[12px] font-medium">{vehicle.category}</span>
+                </div>
+              </div>
+
+              {/* Açıklama */}
+              <p className="text-[#888] text-[14px] mb-4 leading-relaxed">
+                {vehicle.bio || 'Açıklama'}
+              </p>
+
+              {/* Görsel + müzik etiketi */}
+              <div className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden mb-5 bg-[#111]">
+                <img
+                  src={vehicle.imageUrl}
+                  alt={vehicle.userName}
+                  className="w-full h-full object-cover"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => openInSpotify(vehicle.song)}
+                  className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full max-w-[85%] cursor-pointer active:scale-95 transition-transform"
+                  style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}
+                >
+                  <Music size={14} className="text-white flex-shrink-0" strokeWidth={2} />
+                  <span className="text-white text-[12px] font-medium tracking-wide truncate">
+                    {vehicle.song}
+                  </span>
+                </button>
+              </div>
+
+              {/* Maşallah */}
+              <div className="flex justify-center">
+                <motion.button
+                  type="button"
+                  onClick={(e) => handleMasallah(e, vehicle.id)}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-12 py-3 rounded-full flex items-center justify-center transition-colors"
+                  style={{ background: 'transparent', border: '1px solid #333' }}
+                >
+                  <span className="text-white text-[14px] font-medium">Maşallah</span>
                 </motion.button>
               </div>
 

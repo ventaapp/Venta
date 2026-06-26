@@ -167,7 +167,7 @@
   to { opacity: 0; }
 }
 
-/* Bottom nav */
+/* Bottom nav — sayfa ile aynı zemin, ince üst hat */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -175,10 +175,20 @@
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(20px);
-  border-top: 1px solid #1a1a1a;
   z-index: 100;
+  background: #000000;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px 20px 0 0;
+  padding: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
+}
+
+.bottom-nav-inner {
+  position: relative;
+}
+
+.bottom-nav-active-pill {
+  border-radius: 9999px;
+  background: #2c2c2e;
 }
 
 /* Progress bar */

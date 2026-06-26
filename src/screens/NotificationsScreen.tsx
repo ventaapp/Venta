@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Info, X, Trophy } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import BottomNav from '../components/BottomNav';
+import { NotificationsSkeleton } from '../components/skeletons';
 
 // Firebase bağlantıları
 import { db } from '../config/firebase';
@@ -21,10 +22,16 @@ export default function NotificationsScreen() {
   const { user } = useStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 1. YENİ 'notifications' TABLOSUNU DİNLE
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
 
     // Sadece özel bildirimlerin ve dönüm noktalarının olduğu 'notifications' tablosu
     const q = query(
@@ -55,6 +62,10 @@ export default function NotificationsScreen() {
       });
 
       setNotifications(fetchedNotifs);
+      setIsLoading(false);
+    }, (error) => {
+      console.error('Bildirimler dinlenemedi:', error);
+      setIsLoading(false);
     });
 
     return () => unsubscribe(); 
@@ -71,6 +82,10 @@ export default function NotificationsScreen() {
       console.error("Bildirim güncellenemedi:", error);
     }
   };
+
+  if (isLoading) {
+    return <NotificationsSkeleton />;
+  }
 
   return (
     <div className="vante-container min-h-screen flex flex-col" style={{ background: '#000000' }}>

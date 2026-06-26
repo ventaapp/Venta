@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Plus, X, Loader2, ShieldCheck } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { UploadSkeleton } from '../components/skeletons';
 
 // TensorFlow & COCO-SSD İçe Aktarımı
 import * as tf from '@tensorflow/tfjs';
@@ -10,8 +11,7 @@ import * as cocoSsd from '@tensorflow-models/coco-ssd';
 // Firebase bağlantıları
 import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-
-const IMGBB_API_KEY = "fc47067315e932a3ad38f351a492efb8";
+import { uploadImage } from '../lib/upload';
 
 export default function UploadScreen() {
   const { setOnboardingStep, setUser, user } = useStore();
@@ -71,18 +71,8 @@ export default function UploadScreen() {
 
         // 3. ImgBB'ye Yükle
         setProcessingText("Sunucuya Yükleniyor...");
-        const formData = new FormData();
-        formData.append('image', file);
-
-        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-          method: 'POST',
-          body: formData
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          setPhotos((prev) => [...prev, data.data.url]);
-        }
+        const imageUrl = await uploadImage(file);
+        setPhotos((prev) => [...prev, imageUrl]);
       } catch (err) {
         console.error("Yükleme hatası:", err);
       }
@@ -120,6 +110,10 @@ export default function UploadScreen() {
   };
 
   const removePhoto = (index: number) => setPhotos(prev => prev.filter((_, i) => i !== index));
+
+  if (!model) {
+    return <UploadSkeleton />;
+  }
 
   return (
     <div className="vante-container min-h-screen flex flex-col relative" style={{ background: '#000000' }}>

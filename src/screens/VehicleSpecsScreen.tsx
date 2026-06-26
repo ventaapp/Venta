@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Search, X, Loader2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import axios from 'axios';
+import { searchTracks, type TrackResult } from '../lib/musicSearch';
 
 // Firebase
 import { db } from '../config/firebase';
@@ -14,10 +14,6 @@ const SpotifyIcon = ({ className }: { className?: string }) => (
     <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.84.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.6.18-1.2.72-1.38 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.54-1.02.72-1.56.42z"/>
   </svg>
 );
-
-// DİKKAT: Spotify Dashboard'dan aldığın anahtarları buraya yapıştır
-const SPOTIFY_CLIENT_ID = 'dc06b05b0c7a4a05ac0b1a3911fb72be';
-const SPOTIFY_CLIENT_SECRET = 'bd16c09e65a94cd39ad56860493911b1';
 
 export default function VehicleSpecsScreen() {
   const { user, setUser, setOnboardingStep } = useStore();
@@ -31,12 +27,9 @@ export default function VehicleSpecsScreen() {
 
   // Modal State'leri
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Spotify State'leri
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearchingSpotify, setIsSearchingSpotify] = useState(false);
+  const [searchResults, setSearchResults] = useState<TrackResult[]>([]);
+  const [isSearchingMusic, setIsSearchingMusic] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const categories = ['Otomobil', 'Motorsiklet', 'Off-Road/Macera'];
@@ -73,55 +66,26 @@ export default function VehicleSpecsScreen() {
     }
   };
 
-  const openSpotifySearch = () => {
-    setIsConnecting(true);
-    setTimeout(() => {
-      setIsConnecting(false);
-      setIsSearchOpen(true);
-    }, 500);
+  const openMusicSearch = () => {
+    setIsSearchOpen(true);
   };
 
-  // Gerçek Spotify Arama Fonksiyonu
-  const searchSpotify = async (query: string) => {
+  const searchMusic = async (query: string) => {
     if (!query) {
       setSearchResults([]);
       return;
     }
 
-    setIsSearchingSpotify(true);
+    setIsSearchingMusic(true);
     try {
-      const auth = btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`);
-      
-      const tokenRes = await axios.post('https://accounts.spotify.com/api/token', 
-        'grant_type=client_credentials', 
-        {
-          headers: { 
-            'Authorization': `Basic ${auth}`, 
-            'Content-Type': 'application/x-www-form-urlencoded' 
-          }
-        }
-      );
-
-      const token = tokenRes.data.access_token;
-
-      const searchRes = await axios.get(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=6`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      const tracks = searchRes.data.tracks.items.map((track: any) => ({
-        id: track.id,
-        title: track.name,
-        artist: track.artists.map((a: any) => a.name).join(', '),
-        cover: track.album.images[0]?.url || 'https://via.placeholder.com/150',
-        // 3. DEĞİŞİKLİK: Spotify API'sinden preview_url çekiliyor
-        previewUrl: track.preview_url 
-      }));
-
+      const tracks = await searchTracks(query);
       setSearchResults(tracks);
     } catch (error) {
-      console.error("Spotify patladı:", error);
+      if (import.meta.env.DEV) {
+        console.error('Müzik araması başarısız:', error);
+      }
     } finally {
-      setIsSearchingSpotify(false);
+      setIsSearchingMusic(false);
     }
   };
 
@@ -134,8 +98,8 @@ export default function VehicleSpecsScreen() {
     }
 
     searchTimeout.current = setTimeout(() => {
-      searchSpotify(query);
-    }, 500); 
+      searchMusic(query);
+    }, 500);
   };
 
   return (
@@ -187,7 +151,7 @@ export default function VehicleSpecsScreen() {
           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
             {song ? (
               <button 
-                onClick={openSpotifySearch}
+                onClick={openMusicSearch}
                 className="flex items-center gap-2 bg-[#161616] rounded-full pr-4 pl-1 py-1"
               >
                 <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
@@ -199,7 +163,7 @@ export default function VehicleSpecsScreen() {
               </button>
             ) : (
               <button 
-                onClick={openSpotifySearch}
+                onClick={openMusicSearch}
                 className="flex items-center gap-2 bg-[#161616] rounded-full pr-4 pl-1 py-1 transition-transform active:scale-95"
               >
                 <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden relative bg-[#111]">
@@ -225,18 +189,8 @@ export default function VehicleSpecsScreen() {
         </div>
       </div>
 
-      {/* --- SPOTIFY MODALI --- */}
+      {/* --- MÜZİK ARAMA MODALI --- */}
       <AnimatePresence>
-        {isConnecting && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#161616] p-8 rounded-3xl border border-[#222] flex flex-col items-center justify-center space-y-4 relative z-10 shadow-2xl">
-               <Loader2 size={32} className="text-[#1DB954] animate-spin" />
-               <p className="text-[#aaa] text-sm font-medium">Spotify'a Bağlanıyor...</p>
-            </motion.div>
-          </div>
-        )}
-
         {isSearchOpen && (
           <div className="absolute inset-0 z-50 flex items-center justify-center px-4">
             <motion.div 
@@ -255,7 +209,7 @@ export default function VehicleSpecsScreen() {
               <div className="p-4 border-b border-[#222] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                    <SpotifyIcon className="w-6 h-6 text-[#1DB954] flex-shrink-0" />
-                   <span className="text-white font-bold text-sm">Spotify</span>
+                   <span className="text-white font-bold text-sm">Müzik Seç</span>
                 </div>
                 <button onClick={() => setIsSearchOpen(false)} className="p-1.5 bg-[#222] rounded-full hover:bg-[#333]">
                   <X size={16} className="text-white" />
@@ -277,7 +231,7 @@ export default function VehicleSpecsScreen() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-2">
-                {isSearchingSpotify ? (
+                {isSearchingMusic ? (
                    <div className="flex flex-col items-center justify-center h-32">
                      <Loader2 size={24} className="text-[#1DB954] animate-spin mb-2" />
                      <p className="text-[#666] text-xs">Aranıyor...</p>
