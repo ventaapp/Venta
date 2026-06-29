@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
 import { useStore } from '../store/useStore';
@@ -10,6 +10,9 @@ import { recordMasallah } from '../lib/badges';
 import { PlusOneSkeleton } from '../components/skeletons';
 import { uploadImage } from '../lib/upload'; 
 
+// Ortak ParticleBurst bileseni
+import ParticleBurst from '../components/ParticleBurst';
+
 type PlusOnePost = {
   id: string;
   userId: string;
@@ -17,7 +20,7 @@ type PlusOnePost = {
   userHandle: string;
   photoURL: string;
   imageUrl: string;
-  expiresAt?: any;
+  expiresAt?: unknown;
 };
 
 const CARD_HEIGHT_STYLE: React.CSSProperties = {
@@ -43,10 +46,10 @@ function UploadCard({ onUploadClick, isUploading }: { onUploadClick: () => void,
           {isUploading ? (
             <div className="flex flex-col items-center gap-2">
               <Loader2 size={28} className="text-[#888] animate-spin" />
-              <p className="text-[14px] text-[#555]">Yükleniyor...</p>
+              <p className="text-[14px] text-[#555]">Yukleniyor...</p>
             </div>
           ) : (
-            <p className="text-[14px] text-[#555]">Görsel Yükleyin...</p>
+            <p className="text-[14px] text-[#555]">Gorsel Yukleyin...</p>
           )}
         </div>
 
@@ -67,7 +70,7 @@ function UploadCard({ onUploadClick, isUploading }: { onUploadClick: () => void,
             >
               <ChevronRight size={22} className="text-white/80" strokeWidth={2} />
             </motion.div>
-            <span className="text-[10px] font-medium text-white/35 tracking-wide">Kaydır</span>
+            <span className="text-[10px] font-medium text-white/35 tracking-wide">Kaydir</span>
           </div>
         )}
       </button>
@@ -97,6 +100,10 @@ export default function PlusOneScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [particles, setParticles] = useState<{ id: number; originX: number; originY: number }[]>([]);
   
+  // Pull-to-refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartY = useRef(0);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchPosts = async () => {
@@ -115,7 +122,7 @@ export default function PlusOneScreen() {
         fetched.push({
           id: docSnap.id,
           userId: data.userId || docSnap.id,
-          userName: data.displayName || data.userName || 'Kullanıcı',
+          userName: data.displayName || data.userName || 'Kullanici',
           userHandle: data.userHandle || `@${(data.displayName || 'user').toLowerCase().replace(/\s/g, '')}`,
           photoURL: data.photoURL || '',
           imageUrl: data.imageUrl || data.mediaUrl || '',
@@ -123,12 +130,17 @@ export default function PlusOneScreen() {
         });
       });
 
-      const valid = fetched.filter((p) => p.imageUrl).sort((a, b) => b.expiresAt - a.expiresAt);
+      const valid = fetched.filter((p) => p.imageUrl).sort((a, b) => {
+        const aTime = a.expiresAt instanceof Date ? a.expiresAt.getTime() : 0;
+        const bTime = b.expiresAt instanceof Date ? b.expiresAt.getTime() : 0;
+        return bTime - aTime;
+      });
       setPosts(valid);
     } catch (error) {
-      console.error('Gönderiler çekilemedi:', error);
+      console.error('Gonderiler cekilemedi:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -136,22 +148,41 @@ export default function PlusOneScreen() {
     fetchPosts();
   }, []);
 
+  // Pull-to-refresh touch handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Sadece scroll en ustteyken pull-to-refresh aktif
+    if (window.scrollY === 0) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndY = e.changedTouches[0].clientY;
+    const pullDistance = touchEndY - touchStartY.current;
+    
+    // 80px'den fazla cekilirse yenile
+    if (pullDistance > 80 && window.scrollY === 0 && !isRefreshing) {
+      setIsRefreshing(true);
+      fetchPosts();
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.uid) return;
 
     setIsUploading(true);
     try {
-      const fileUrl = await uploadImage(file); // ImgBB sadece fotoğraf alacak
+      const fileUrl = await uploadImage(file); // ImgBB sadece fotograf alacak
       
       const expiresAt = new Date();
-      // TEST İÇİN: 1 Dakika denemek istersen alttaki satırı kullanabilirsin
+      // TEST ICIN: 1 Dakika denemek istersen alttaki satiri kullanabilirsin
       // expiresAt.setMinutes(expiresAt.getMinutes() + 1); 
-      expiresAt.setHours(expiresAt.getHours() + 1); // CANLI: 1 Saat ömür
+      expiresAt.setHours(expiresAt.getHours() + 1); // CANLI: 1 Saat omur
 
       await addDoc(collection(db, 'plusOnePosts'), {
         userId: user.uid,
-        userName: user?.displayName || 'Kullanıcı',
+        userName: user?.displayName || 'Kullanici',
         userHandle: `@${(user?.displayName || 'user').toLowerCase().replace(/\s/g, '')}`,
         photoURL: user?.photoURL || '',
         imageUrl: fileUrl,
@@ -161,8 +192,8 @@ export default function PlusOneScreen() {
 
       await fetchPosts();
     } catch (error) {
-      console.error("Yükleme hatası:", error);
-      alert("Dosya yüklenirken bir hata oluştu. Lütfen tekrar deneyin.");
+      console.error("Yukleme hatasi:", error);
+      alert("Dosya yuklenirken bir hata olustu. Lutfen tekrar deneyin.");
     } finally {
       setIsUploading(false);
       if (e.target) e.target.value = '';
@@ -179,7 +210,7 @@ export default function PlusOneScreen() {
     try {
       await recordMasallah(user.uid, targetId, 'plus_one_like');
     } catch (err) {
-      console.error('Maşallah kaydedilemedi:', err);
+      console.error('Masallah kaydedilemedi:', err);
     }
   };
 
@@ -196,9 +227,13 @@ export default function PlusOneScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex flex-col font-['Inter']">
+    <div 
+      className="min-h-screen bg-black flex flex-col font-['Inter']"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       
-      {/* SADECE FOTOĞRAF KABUL EDEN INPUT */}
+      {/* SADECE FOTOGRAF KABUL EDEN INPUT */}
       <input 
         type="file" 
         accept="image/*" 
@@ -207,11 +242,26 @@ export default function PlusOneScreen() {
         className="hidden" 
       />
 
+      {/* Pull-to-Refresh Indicator */}
+      <AnimatePresence>
+        {isRefreshing && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-center justify-center py-3"
+          >
+            <RefreshCw size={18} className="text-[#888] animate-spin mr-2" />
+            <span className="text-[12px] text-[#888]">Yenileniyor...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="shrink-0 flex items-start justify-between gap-4 px-5 pt-12 pb-5 relative">
         <div className="min-w-0 flex-1 z-10">
           <h1 className="text-white text-[22px] font-bold tracking-tight">+1 Saatleri</h1>
           <p className="mt-2 text-[12px] leading-relaxed text-[#888] max-w-[240px]">
-            Yeni yıkama, gece manzarası böyle anlarını çek, 60 dakikalığına paylaş, ruhunu yansıt.
+            Yeni yikama, gece manzarasi boyle anlarini cek, 60 dakikaligina paylas, ruhunu yansit.
           </p>
         </div>
         <PlusOneLogo />
@@ -233,7 +283,7 @@ export default function PlusOneScreen() {
               className="relative w-full overflow-hidden rounded-2xl bg-[#111]"
               style={CARD_HEIGHT_STYLE}
             >
-              {/* SADECE IMG ETİKETİ */}
+              {/* SADECE IMG ETIKETI */}
               <img
                 src={post.imageUrl}
                 alt={post.userName}
@@ -267,7 +317,7 @@ export default function PlusOneScreen() {
                   className="shrink-0 rounded-full border border-zinc-700 px-5 py-2.5 text-[13px] font-medium text-white transition-colors"
                   style={{ background: 'rgba(0,0,0,0.55)' }}
                 >
-                  Maşallah
+                  Masallah
                 </motion.button>
               </div>
             </div>
@@ -287,60 +337,6 @@ export default function PlusOneScreen() {
       </AnimatePresence>
 
       <BottomNav />
-    </div>
-  );
-}
-
-function ParticleBurst({
-  originX,
-  originY,
-  onComplete,
-}: {
-  originX: number;
-  originY: number;
-  onComplete: () => void;
-}) {
-  const particles = Array.from({ length: 16 }, (_, i) => ({
-    id: i,
-    startX: originX + (Math.random() * 40 - 20),
-    startY: originY + (Math.random() * 40 - 20),
-    angle: Math.random() * 360,
-    distance: 80 + Math.random() * 200,
-    size: 12 + Math.random() * 18,
-    rotation: Math.random() * 720 - 360,
-    delay: Math.random() * 100,
-  }));
-
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 1000);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-
-  return (
-    <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
-      {particles.map((p) => {
-        const rad = (p.angle * Math.PI) / 180;
-        const tx = Math.cos(rad) * p.distance;
-        const ty = Math.sin(rad) * p.distance;
-        return (
-          <motion.span
-            key={p.id}
-            className="absolute"
-            style={{ fontSize: p.size, left: p.startX, top: p.startY }}
-            initial={{ x: 0, y: 0, scale: 0.2, opacity: 1, rotate: 0 }}
-            animate={{
-              x: tx,
-              y: ty,
-              scale: [0.2, 1.1, 0.7],
-              opacity: [1, 1, 0],
-              rotate: p.rotation,
-            }}
-            transition={{ duration: 0.9, delay: p.delay / 1000, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            🧿
-          </motion.span>
-        );
-      })}
     </div>
   );
 }
