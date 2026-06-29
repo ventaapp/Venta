@@ -31,7 +31,7 @@ const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
 const ShareGarageScreen = lazy(() => import('./screens/ShareGarageScreen'));
 const PublicGarageScreen = lazy(() => import('./screens/PublicGarageScreen'));
 
-// Firebase bağlantıları
+// Firebase baglantilari
 import { auth, db } from './config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -45,7 +45,7 @@ function AppRoutes() {
   
   const isAuthenticated = !!user;
 
-  // 1. Giriş yapılmamışsa - Sadece Login göster
+  // 1. Giris yapilmamissa - Sadece Login goster
   if (!isAuthenticated) {
     return (
       <Routes>
@@ -54,7 +54,7 @@ function AppRoutes() {
     );
   }
 
-  // 2. Giriş yapılmış ama kayıt adımları (1, 2, 3, 4) bitmemişse
+  // 2. Giris yapilmis ama kayit adimlari (1, 2, 3, 4) bitmemisse
   if (isAuthenticated && onboardingStep < 5) {
     return (
       <Routes>
@@ -70,13 +70,14 @@ function AppRoutes() {
     );
   }
 
-  // 3. Giriş yapılmış ve kayıt bitmişse - Ana uygulamayı göster
+  // 3. Giris yapilmis ve kayit bitmisse - Ana uygulamayi goster
   return (
     <Routes>
       <Route path="/feed" element={withSuspense(<FeedSkeleton />, <MainFeedScreen />)} />
       <Route path="/plus-one" element={withSuspense(<PlusOneSkeleton />, <PlusOneScreen />)} />
       <Route path="/badges" element={withSuspense(<BadgesSkeleton />, <BadgesScreen />)} />
       <Route path="/garage" element={withSuspense(<GarageSkeleton />, <GarageScreen />)} />
+      <Route path="/specs" element={withSuspense(<VehicleSpecsSkeleton />, <VehicleSpecsScreen />)} />
       <Route path="/notifications" element={withSuspense(<NotificationsSkeleton />, <NotificationsScreen />)} />
       <Route path="/settings" element={withSuspense(<SettingsSkeleton />, <SettingsScreen />)} />
       <Route path="/share" element={withSuspense(<ShareGarageSkeleton />, <ShareGarageScreen />)} />
@@ -110,7 +111,7 @@ export default function App() {
             setOnboardingStep(1);
           }
         } catch (error) {
-          console.error("Veri çekme hatası (Ama hesaptan atılmayacak):", error);
+          console.error("Veri cekme hatasi (Ama hesaptan atilmayacak):", error);
           setUser({ uid: firebaseUser.uid, email: firebaseUser.email });
           setOnboardingStep(5);
         }
