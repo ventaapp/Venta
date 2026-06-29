@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
 import { useStore } from '../store/useStore';
 import { db } from '../config/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { recordMasallah } from '../lib/badges';
 import { PlusOneSkeleton } from '../components/skeletons';
+import { uploadImage } from '../lib/upload'; 
 
 type PlusOnePost = {
   id: string;
@@ -16,6 +17,7 @@ type PlusOnePost = {
   userHandle: string;
   photoURL: string;
   imageUrl: string;
+  expiresAt?: any;
 };
 
 const CARD_HEIGHT_STYLE: React.CSSProperties = {
@@ -24,7 +26,7 @@ const CARD_HEIGHT_STYLE: React.CSSProperties = {
   maxHeight: '640px',
 };
 
-function UploadCard({ onUploadClick }: { onUploadClick: () => void }) {
+function UploadCard({ onUploadClick, isUploading }: { onUploadClick: () => void, isUploading: boolean }) {
   return (
     <section
       className="snap-center shrink-0 w-full px-5 box-border"
@@ -33,31 +35,41 @@ function UploadCard({ onUploadClick }: { onUploadClick: () => void }) {
       <button
         type="button"
         onClick={onUploadClick}
-        className="relative w-full rounded-2xl bg-[#0a0a0a] overflow-hidden"
-        style={CARD_HEIGHT_STYLE}
+        disabled={isUploading}
+        className="relative w-full rounded-2xl bg-[#0a0a0a] overflow-hidden transition-opacity"
+        style={{ ...CARD_HEIGHT_STYLE, opacity: isUploading ? 0.5 : 1 }}
       >
         <div className="absolute inset-3 flex items-center justify-center rounded-xl border border-dashed border-zinc-700">
-          <p className="text-[14px] text-[#555]">Görselleri Buraya Yükleyin...</p>
+          {isUploading ? (
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 size={28} className="text-[#888] animate-spin" />
+              <p className="text-[14px] text-[#555]">Yükleniyor...</p>
+            </div>
+          ) : (
+            <p className="text-[14px] text-[#555]">Görsel Yükleyin...</p>
+          )}
         </div>
 
-        <div className="absolute right-5 bottom-1/2 flex translate-y-1/2 flex-col items-center gap-1 pointer-events-none">
-          <motion.div
-            animate={{
-              opacity: [0.35, 1, 0.35],
-              x: [0, 5, 0],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-            className="rounded-full"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.45))' }}
-          >
-            <ChevronRight size={22} className="text-white/80" strokeWidth={2} />
-          </motion.div>
-          <span className="text-[10px] font-medium text-white/35 tracking-wide">Kaydır</span>
-        </div>
+        {!isUploading && (
+          <div className="absolute right-5 bottom-1/2 flex translate-y-1/2 flex-col items-center gap-1 pointer-events-none">
+            <motion.div
+              animate={{
+                opacity: [0.35, 1, 0.35],
+                x: [0, 5, 0],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+              className="rounded-full"
+              style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.45))' }}
+            >
+              <ChevronRight size={22} className="text-white/80" strokeWidth={2} />
+            </motion.div>
+            <span className="text-[10px] font-medium text-white/35 tracking-wide">Kaydır</span>
+          </div>
+        )}
       </button>
     </section>
   );
@@ -82,39 +94,80 @@ export default function PlusOneScreen() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState<PlusOnePost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
   const [particles, setParticles] = useState<{ id: number; originX: number; originY: number }[]>([]);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchPosts = async () => {
+    setIsLoading(true);
+    try {
+      const q = query(
+        collection(db, 'plusOnePosts'),
+        where('expiresAt', '>', new Date())
+      );
+      
+      const snapshot = await getDocs(q);
+      
+      const fetched: PlusOnePost[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        fetched.push({
+          id: docSnap.id,
+          userId: data.userId || docSnap.id,
+          userName: data.displayName || data.userName || 'Kullanıcı',
+          userHandle: data.userHandle || `@${(data.displayName || 'user').toLowerCase().replace(/\s/g, '')}`,
+          photoURL: data.photoURL || '',
+          imageUrl: data.imageUrl || data.mediaUrl || '',
+          expiresAt: data.expiresAt
+        });
+      });
+
+      const valid = fetched.filter((p) => p.imageUrl).sort((a, b) => b.expiresAt - a.expiresAt);
+      setPosts(valid);
+    } catch (error) {
+      console.error('Gönderiler çekilemedi:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchPosts = async () => {
-      setIsLoading(true);
-      try {
-        const snapshot = await getDocs(collection(db, 'plusOnePosts'));
-        if (snapshot.empty) return;
-
-        const fetched: PlusOnePost[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          fetched.push({
-            id: docSnap.id,
-            userId: data.userId || docSnap.id,
-            userName: data.displayName || data.userName || 'Vante Sürücüsü',
-            userHandle: data.userHandle || `@${(data.displayName || 'vante').toLowerCase().replace(/\s/g, '')}`,
-            photoURL: data.photoURL || '',
-            imageUrl: data.imageUrl || data.mediaUrl || '',
-          });
-        });
-
-        const valid = fetched.filter((p) => p.imageUrl);
-        if (valid.length > 0) setPosts(valid);
-      } catch (error) {
-        console.error('PlusOne gönderileri çekilemedi:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchPosts();
   }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.uid) return;
+
+    setIsUploading(true);
+    try {
+      const fileUrl = await uploadImage(file); // ImgBB sadece fotoğraf alacak
+      
+      const expiresAt = new Date();
+      // TEST İÇİN: 1 Dakika denemek istersen alttaki satırı kullanabilirsin
+      // expiresAt.setMinutes(expiresAt.getMinutes() + 1); 
+      expiresAt.setHours(expiresAt.getHours() + 1); // CANLI: 1 Saat ömür
+
+      await addDoc(collection(db, 'plusOnePosts'), {
+        userId: user.uid,
+        userName: user?.displayName || 'Kullanıcı',
+        userHandle: `@${(user?.displayName || 'user').toLowerCase().replace(/\s/g, '')}`,
+        photoURL: user?.photoURL || '',
+        imageUrl: fileUrl,
+        createdAt: new Date(),
+        expiresAt: expiresAt
+      });
+
+      await fetchPosts();
+    } catch (error) {
+      console.error("Yükleme hatası:", error);
+      alert("Dosya yüklenirken bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const handleMasallah = async (e: React.MouseEvent, targetId: string) => {
     if (!user?.uid) return;
@@ -135,33 +188,40 @@ export default function PlusOneScreen() {
   }, []);
 
   const handleUploadClick = () => {
-    alert('Dosya yükleme yakında eklenecek.');
+    fileInputRef.current?.click();
   };
 
-  if (isLoading) {
+  if (isLoading && posts.length === 0) {
     return <PlusOneSkeleton />;
   }
 
   return (
     <div className="min-h-screen bg-black flex flex-col font-['Inter']">
-      {/* Üst başlık - overflow-hidden kaldırıldı, logo doğal akışında en köşede kalsın */}
+      
+      {/* SADECE FOTOĞRAF KABUL EDEN INPUT */}
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        className="hidden" 
+      />
+
       <header className="shrink-0 flex items-start justify-between gap-4 px-5 pt-12 pb-5 relative">
         <div className="min-w-0 flex-1 z-10">
           <h1 className="text-white text-[22px] font-bold tracking-tight">+1 Saatleri</h1>
           <p className="mt-2 text-[12px] leading-relaxed text-[#888] max-w-[240px]">
-            Yeni yıkama, gece manzarası veya o ses... Anını kaydet, 60 dakikalığına paylaş, ruhunu
-            yansıt.
+            Yeni yıkama, gece manzarası böyle anlarını çek, 60 dakikalığına paylaş, ruhunu yansıt.
           </p>
         </div>
         <PlusOneLogo />
       </header>
 
-      {/* Yatay kaydırma alanı */}
       <div
         className="flex-1 flex overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <UploadCard onUploadClick={handleUploadClick} />
+        <UploadCard onUploadClick={handleUploadClick} isUploading={isUploading} />
 
         {posts.map((post) => (
           <section
@@ -173,16 +233,14 @@ export default function PlusOneScreen() {
               className="relative w-full overflow-hidden rounded-2xl bg-[#111]"
               style={CARD_HEIGHT_STYLE}
             >
+              {/* SADECE IMG ETİKETİ */}
               <img
                 src={post.imageUrl}
                 alt={post.userName}
                 className="absolute inset-0 h-full w-full object-cover"
               />
 
-              {/* Alt overlay */}
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 pt-16 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                
-                {/* Yönlendirme onClick'i eklendi */}
                 <div 
                   onClick={() => navigate(`/user/${post.userId}`)}
                   className="flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-80 transition-opacity z-20"
