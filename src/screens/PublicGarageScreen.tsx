@@ -6,14 +6,29 @@ import { PublicGarageSkeleton } from '../components/skeletons';
 import { db } from '../config/firebase';
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import BottomNav from '../components/BottomNav';
-import { useStore } from '../store/useStore'; // Kendi bilgilerimize ulaşmak için eklendi
+import { useStore } from '../store/useStore';
+
+// Firestore'dan gelen kullanici verisi tipi
+interface PublicUserProfile {
+  uid?: string;
+  displayName?: string;
+  email?: string;
+  photoURL?: string | null;
+  bio?: string;
+  lane?: string;
+  profileCompleted?: boolean;
+  hasVehicle?: boolean;
+  vehiclePhotos?: string[];
+  following?: string[];
+  createdAt?: unknown;
+}
 
 export default function PublicGarageScreen() {
-  const { userId } = useParams(); 
+  const { userId } = useParams<{ userId: string }>(); 
   const navigate = useNavigate();
-  const { user: currentUser, setUser } = useStore(); // Mevcut kullanıcının verileri
+  const { user: currentUser, setUser } = useStore();
   
-  const [profileUser, setProfileUser] = useState<any>(null);
+  const [profileUser, setProfileUser] = useState<PublicUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [garageOpen, setGarageOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('Otomobil');
@@ -28,11 +43,10 @@ export default function PublicGarageScreen() {
         const docRef = doc(db, 'users', userId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          const data = docSnap.data();
+          const data = docSnap.data() as PublicUserProfile;
           setProfileUser(data);
           if (data.lane) setActiveTab(data.lane);
 
-          // EĞER BU KULLANICIYI ZATEN TAKİP EDİYORSAK BUTONU AKTİF YAP
           if (currentUser?.following?.includes(userId)) {
             setIsFollowing(true);
           }
@@ -40,7 +54,7 @@ export default function PublicGarageScreen() {
           setProfileUser(null);
         }
       } catch (error) {
-        console.error("Profil çekilemedi:", error);
+        console.error("Profil cekilemedi:", error);
       } finally {
         setLoading(false);
       }
@@ -48,11 +62,9 @@ export default function PublicGarageScreen() {
     fetchUser();
   }, [userId, currentUser?.following]);
 
-  // TAKİP ET / TAKİPTEN ÇIK FONKSİYONU
   const handleFollowToggle = async () => {
     if (!currentUser?.uid || !userId) return;
     
-    // Tıklanma hissini anında vermek için önce ekranı güncelliyoruz (Optimistic UI)
     const currentlyFollowing = isFollowing;
     setIsFollowing(!currentlyFollowing);
 
@@ -60,21 +72,17 @@ export default function PublicGarageScreen() {
       const userRef = doc(db, 'users', currentUser.uid);
       
       if (currentlyFollowing) {
-        // TAKİPTEN ÇIKMA
         await updateDoc(userRef, { following: arrayRemove(userId) });
-        // Yerel store'u güncelle
         const newFollowing = (currentUser.following || []).filter((id: string) => id !== userId);
         setUser({ ...currentUser, following: newFollowing });
       } else {
-        // TAKİP ETME
         await updateDoc(userRef, { following: arrayUnion(userId) });
-        // Yerel store'u güncelle
         const newFollowing = [...(currentUser.following || []), userId];
         setUser({ ...currentUser, following: newFollowing });
       }
     } catch (error) {
-      console.error("Takip işlemi hatası:", error);
-      setIsFollowing(currentlyFollowing); // Hata olursa butonu eski haline getir
+      console.error("Takip islemi hatasi:", error);
+      setIsFollowing(currentlyFollowing);
     }
   };
 
@@ -85,14 +93,13 @@ export default function PublicGarageScreen() {
   if (!profileUser) {
     return (
       <div className="min-h-screen bg-black flex flex-col justify-center items-center text-white">
-        <p>Kullanıcı bulunamadı.</p>
-        <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-zinc-800 rounded-full">Geri Dön</button>
+        <p>Kullanici bulunamadi.</p>
+        <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-zinc-800 rounded-full">Geri Don</button>
       </div>
     );
   }
 
   const hasPhotos = profileUser.vehiclePhotos && profileUser.vehiclePhotos.length > 0;
-  // Kendi profilimize dışarıdan bakıyorsak takip et butonunu gizleyelim
   const isSelf = currentUser?.uid === userId; 
 
   return (
@@ -106,7 +113,7 @@ export default function PublicGarageScreen() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-32">
-        <h1 className="text-white text-[24px] font-bold tracking-tight mb-6">Kullanıcının Garajı</h1>
+        <h1 className="text-white text-[24px] font-bold tracking-tight mb-6">Kullanicinin Garaji</h1>
 
         <div className="flex items-center gap-4 mb-8">
           <div className="w-[56px] h-[56px] rounded-full overflow-hidden flex items-center justify-center bg-[#1E1E1E] shrink-0">
@@ -118,7 +125,7 @@ export default function PublicGarageScreen() {
           </div>
           <div className="min-w-0 flex flex-col">
             <p className="text-white text-[16px] font-medium truncate">
-              {profileUser.displayName || 'Kullanıcı Adı'}
+              {profileUser.displayName || 'Kullanici Adi'}
             </p>
             <p className="text-[14px] text-[#888] truncate">
               @{profileUser.displayName?.toLowerCase().replace(/\s/g, '') || 'user'}
@@ -127,13 +134,12 @@ export default function PublicGarageScreen() {
         </div>
 
         <div className="mb-6">
-          <span className="text-[16px] font-medium text-white block mb-2">Hakkında</span>
+          <span className="text-[16px] font-medium text-white block mb-2">Hakkinda</span>
           <p className="text-[14px] leading-relaxed text-[#999]">
-            {profileUser.bio || 'Modifiye ve araba hastası bir kullanıcı.'}
+            {profileUser.bio || 'Modifiye ve araba hastasi bir kullanici.'}
           </p>
         </div>
 
-        {/* Takip Et Butonu (Kendi profilimiz değilse görünür) */}
         {!isSelf && (
           <div className="mb-10">
             <button 
@@ -191,7 +197,7 @@ export default function PublicGarageScreen() {
 
               {hasPhotos ? (
                 <div className="space-y-6 pb-2">
-                  {profileUser.vehiclePhotos.map((photo: string, i: number) => (
+                  {profileUser.vehiclePhotos!.map((photo: string, i: number) => (
                     <div key={i} className="relative pt-5">
                       <div className="absolute left-3 right-3 top-0 h-[calc(100%-12px)] rounded-xl border border-[#1f1f1f] bg-[#111] transform -translate-y-4 scale-[0.94] z-0" />
                       <div className="absolute left-1.5 right-1.5 top-0 h-[calc(100%-6px)] rounded-xl border border-[#222] bg-[#161616] transform -translate-y-2 scale-[0.97] z-10" />
@@ -203,7 +209,7 @@ export default function PublicGarageScreen() {
                         <div className="flex items-center justify-between px-4 py-4 bg-[#050505]">
                           <span className="text-[12px] font-medium text-white">{profileUser.lane || 'Modifiye'}</span>
                           <div className="flex items-center gap-3">
-                            <button onClick={() => alert("Bu garaj başkasına ait.")}>
+                            <button onClick={() => alert("Bu garaj baskasina ait.")}>
                               <Edit3 size={15} className="text-[#888] hover:text-white transition-colors" />
                             </button>
                             <button onClick={() => navigator.share && navigator.share({ url: window.location.href })}>
@@ -217,7 +223,7 @@ export default function PublicGarageScreen() {
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <p className="text-[#444] text-sm">Bu kullanıcının garajı henüz boş.</p>
+                  <p className="text-[#444] text-sm">Bu kullanicinin garaji henuz bos.</p>
                 </div>
               )}
             </motion.div>
