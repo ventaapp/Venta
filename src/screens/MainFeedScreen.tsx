@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import BottomNav from '../components/BottomNav';
 import { FeedSkeleton } from '../components/skeletons';
+import ParticleBurst from '../components/ParticleBurst';
 
 // Firebase
 import { db } from '../config/firebase';
@@ -22,48 +23,6 @@ export type FeedVehicle = {
   song: string;
 };
 
-// --- Efsanevi Nazar Boncuğu Patlama Efekti ---
-function ParticleBurst({ originX, originY, onComplete }: { originX: number; originY: number; onComplete: () => void }) {
-  const particles = Array.from({ length: 20 }, (_, i) => ({
-    id: i,
-    startX: originX + (Math.random() * 40 - 20),
-    startY: originY + (Math.random() * 40 - 20),
-    angle: Math.random() * 360,
-    distance: 100 + Math.random() * 300,
-    size: 14 + Math.random() * 24,
-    rotation: Math.random() * 720 - 360,
-    delay: Math.random() * 100,
-    emoji: '🧿',
-  }));
-
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 1200);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-
-  return (
-    <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
-      {particles.map((p) => {
-        const rad = (p.angle * Math.PI) / 180;
-        const tx = Math.cos(rad) * p.distance;
-        const ty = Math.sin(rad) * p.distance;
-        return (
-          <motion.span
-            key={p.id}
-            className="absolute"
-            style={{ fontSize: p.size, left: p.startX, top: p.startY }}
-            initial={{ x: 0, y: 0, scale: 0.2, opacity: 1, rotate: 0 }}
-            animate={{ x: tx, y: ty, scale: [0.2, 1.2, 0.8], opacity: [1, 1, 0], rotate: p.rotation }}
-            transition={{ duration: 1, delay: p.delay / 1000, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            {p.emoji}
-          </motion.span>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function MainFeedScreen() {
   const { user } = useStore();
   const navigate = useNavigate();
@@ -73,7 +32,7 @@ export default function MainFeedScreen() {
   const [particles, setParticles] = useState<{ id: number; originX: number; originY: number }[]>([]);
   const [feedTab, setFeedTab] = useState<'explore' | 'following'>('explore');
 
-  // FIREBASE'DEN ARAÇLARI ÇEK
+  // FIREBASE'DEN ARACLARI CEK
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
@@ -87,20 +46,20 @@ export default function MainFeedScreen() {
           if (data.vehiclePhotos && data.vehiclePhotos.length > 0) {
             fetchedList.push({
               id: docSnap.id,
-              userName: data.displayName || 'Vante Sürücüsü',
+              userName: data.displayName || 'Vante Surucusu',
               userHandle: `@${(data.displayName || 'vante').toLowerCase().replace(/\s/g, '')}`,
               photoURL: data.photoURL || '',
               imageUrl: data.vehiclePhotos[0],
               category: data.vehicleCategory || data.lane || 'Otomobil',
               bio: data.vehicleDescription || data.bio || '',
-              song: data.vehicleSong || 'Vante Original - Gece Sürüşü', 
+              song: data.vehicleSong || 'Vante Original - Gece Surusu', 
             });
           }
         });
         
         setFeedVehicles(fetchedList.sort(() => Math.random() - 0.5));
       } catch (error) {
-        console.error("Araçlar çekilemedi:", error);
+        console.error("Araclar cekilemedi:", error);
       } finally {
         setIsLoading(false);
       }
@@ -123,7 +82,7 @@ export default function MainFeedScreen() {
     try {
       await recordMasallah(user.uid, targetId, 'like');
     } catch (err) {
-      console.error("Maşallah kaydedilemedi:", err);
+      console.error("Masallah kaydedilemedi:", err);
     }
   };
 
@@ -131,10 +90,9 @@ export default function MainFeedScreen() {
     setParticles((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-// "Takip Edilenler" sekmesindeysek, aracın sahibinin id'si bizim "following" dizimizde var mı diye filtreliyoruz.
-const displayedVehicles = feedTab === 'explore' 
-? feedVehicles 
-: feedVehicles.filter(vehicle => user?.following?.includes(vehicle.id));
+  const displayedVehicles = feedTab === 'explore' 
+    ? feedVehicles 
+    : feedVehicles.filter(vehicle => user?.following?.includes(vehicle.id));
 
   if (isLoading) {
     return (
@@ -150,7 +108,7 @@ const displayedVehicles = feedTab === 'explore'
 
       <div className="flex-1 overflow-y-auto pb-24 no-scrollbar">
 
-        {/* Üst sekmeler ve bildirim */}
+        {/* Ust sekmeler ve bildirim */}
         <div className="sticky top-0 z-20 flex items-center justify-between px-5 pt-12 pb-4 bg-black">
           <div className="flex items-center gap-2">
             <button
@@ -163,7 +121,7 @@ const displayedVehicles = feedTab === 'explore'
                 border: feedTab === 'explore' ? 'none' : '1px solid #222',
               }}
             >
-              Keşfet
+              Kesfet
             </button>
             <button
               type="button"
@@ -192,12 +150,12 @@ const displayedVehicles = feedTab === 'explore'
         {displayedVehicles.length === 0 ? (
           <div className="h-40 flex flex-col items-center justify-center px-6 text-center">
             <p className="text-white text-lg mb-2">
-              {feedTab === 'following' ? 'Takip Ettiğin Kimse Yok' : 'Garaj Şu An Boş'}
+              {feedTab === 'following' ? 'Takip Ettigin Kimse Yok' : 'Garaj Su An Bos'}
             </p>
             <p className="text-[#888] text-sm">
               {feedTab === 'following'
-                ? 'Keşfet sekmesinden yeni sürücüler bulabilirsin.'
-                : 'Uygulamaya ilk aracını sen ekle.'}
+                ? 'Kesfet sekmesinden yeni suruculer bulabilirsin.'
+                : 'Uygulamaya ilk aracini sen ekle.'}
             </p>
           </div>
         ) : (
@@ -234,12 +192,12 @@ const displayedVehicles = feedTab === 'explore'
                 </div>
               </div>
 
-              {/* Açıklama */}
+              {/* Aciklama */}
               <p className="text-[#888] text-[14px] mb-4 leading-relaxed">
-                {vehicle.bio || 'Açıklama'}
+                {vehicle.bio || 'Aciklama'}
               </p>
 
-              {/* Görsel + müzik etiketi */}
+              {/* Gorsel + muzik etiketi */}
               <div className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden mb-5 bg-[#111]">
                 <img
                   src={vehicle.imageUrl}
@@ -260,7 +218,7 @@ const displayedVehicles = feedTab === 'explore'
                 </button>
               </div>
 
-              {/* Maşallah */}
+              {/* Masallah */}
               <div className="flex justify-center">
                 <motion.button
                   type="button"
@@ -269,7 +227,7 @@ const displayedVehicles = feedTab === 'explore'
                   className="px-12 py-3 rounded-full flex items-center justify-center transition-colors"
                   style={{ background: 'transparent', border: '1px solid #333' }}
                 >
-                  <span className="text-white text-[14px] font-medium">Maşallah</span>
+                  <span className="text-white text-[14px] font-medium">Masallah</span>
                 </motion.button>
               </div>
 
@@ -280,7 +238,14 @@ const displayedVehicles = feedTab === 'explore'
 
       <AnimatePresence>
         {particles.map((p) => (
-          <ParticleBurst key={p.id} originX={p.originX} originY={p.originY} onComplete={() => removeParticle(p.id)} />
+          <ParticleBurst 
+            key={p.id} 
+            originX={p.originX} 
+            originY={p.originY} 
+            onComplete={() => removeParticle(p.id)}
+            particleCount={20}
+            duration={1.2}
+          />
         ))}
       </AnimatePresence>
 
