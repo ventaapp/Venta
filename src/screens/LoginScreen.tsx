@@ -2,18 +2,19 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
-// Firebase bağlantıları
+// Firebase baglantilari
 import { auth, db } from '../config/firebase';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
   OAuthProvider, 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
+  createUserWithEmailAndPassword,
+  type User as FirebaseUser
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-// Split Card Component — Kimi'nin orijinal tasarımı (Hiç ellenmedi)
+// Split Card Component — Kimi'nin orijinal tasarimi (Hic ellenmedi)
 function SplitRevealCard({ revealed, onReveal }: { revealed: boolean; onReveal: () => void }) {
   return (
     <div
@@ -36,7 +37,7 @@ function SplitRevealCard({ revealed, onReveal }: { revealed: boolean; onReveal: 
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
             >
-              Vante&apos;ye<br />Hoşgeldiniz!
+              Vante&apos;ye<br />Hosgeldiniz!
             </motion.p>
           </motion.div>
         )}
@@ -93,7 +94,7 @@ export default function LoginScreen() {
   const [revealed, setRevealed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  // E-Posta giriş formu state'leri
+  // E-Posta giris formu stateleri
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -102,8 +103,8 @@ export default function LoginScreen() {
     if (!revealed) setRevealed(true);
   }, [revealed]);
 
-  // Firestore Kullanıcı Verisi İşleme Ortak Fonksiyonu
-  const processUser = async (firebaseUser: any) => {
+  // Firestore Kullanici Verisi Isleme Ortak Fonksiyonu
+  const processUser = async (firebaseUser: FirebaseUser) => {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const userSnapshot = await getDoc(userDocRef);
     let userData;
@@ -130,7 +131,7 @@ export default function LoginScreen() {
     setUser(userData);
     setAuthenticated(true);
     
-    // GÜVENLİK KİLİDİ: Eğer adamın veritabanında ismi yoksa, step ne olursa olsun İSİM EKRANINA (1) at!
+    // GUVENLIK KILIDI: Eger adamn veritabaninda ismi yoksa, step ne olursa olsun ISIM EKRANINA (1) at!
     if (!userData.displayName || userData.displayName.trim() === '') {
       setOnboardingStep(1);
     } else {
@@ -138,7 +139,7 @@ export default function LoginScreen() {
     }
   };
 
-  // Google ve Apple Girişi
+  // Google ve Apple Girisi
   const handleSocialLogin = async (providerName: string) => {
     setIsLoading(true);
     try {
@@ -152,36 +153,37 @@ export default function LoginScreen() {
       }
       if (result) await processUser(result.user);
     } catch (error) {
-      console.error(`${providerName} giriş hatası:`, error);
-      alert("Giriş yaparken bir sorun oluştu.");
+      console.error(`${providerName} giris hatasi:`, error);
+      alert("Giris yaparken bir sorun olustu.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // E-Posta ile Giriş / Kayıt
+  // E-Posta ile Giris / Kayit
   const handleEmailAuth = async () => {
     if (!email || !password) {
-      alert("Lütfen e-posta ve şifrenizi girin.");
+      alert("Lutfen e-posta ve sifrenizi girin.");
       return;
     }
     setIsLoading(true);
     try {
-      // Önce giriş yapmayı dener
+      // Once giris yapmayi dener
       const result = await signInWithEmailAndPassword(auth, email, password);
       await processUser(result.user);
-    } catch (error: any) {
-      // Eğer kullanıcı bulunamadıysa (auth/user-not-found) yeni kayıt oluşturur
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+    } catch (error: unknown) {
+      const firebaseError = error as { code?: string };
+      // Eger kullanici bulunamadiysa (auth/user-not-found) yeni kayit olusturur
+      if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/invalid-credential') {
         try {
           const newResult = await createUserWithEmailAndPassword(auth, email, password);
           await processUser(newResult.user);
         } catch (registerError) {
-          console.error("Kayıt hatası:", registerError);
-          alert("Kayıt oluşturulamadı. Şifreniz en az 6 karakter olmalıdır.");
+          console.error("Kayit hatasi:", registerError);
+          alert("Kayit olusturulamadi. Sifreniz en az 6 karakter olmalidir.");
         }
       } else {
-        alert("E-posta veya şifre hatalı.");
+        alert("E-posta veya sifre hatali.");
       }
     } finally {
       setIsLoading(false);
@@ -219,7 +221,7 @@ export default function LoginScreen() {
         </div>
 
         <div className="pb-10 space-y-3">
-          {/* Eğer E-Posta formu açıksa bunu göster */}
+          {/* Eger E-Posta formu aciksa bunu goster */}
           {showEmailForm ? (
             <motion.div 
               initial={{ opacity: 0, height: 0 }} 
@@ -236,7 +238,7 @@ export default function LoginScreen() {
               />
               <input
                 type="password"
-                placeholder="Şifreniz"
+                placeholder="Sifreniz"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-[#121212] border border-[#333] rounded-[24px] px-4 py-4 text-white text-sm focus:border-white focus:outline-none transition-colors"
@@ -248,17 +250,17 @@ export default function LoginScreen() {
                 disabled={isLoading}
                 whileTap={{ scale: 0.97 }}
               >
-                {isLoading ? "İşleniyor..." : "Giriş Yap / Kayıt Ol"}
+                {isLoading ? "Isleniyor..." : "Giris Yap / Kayit Ol"}
               </motion.button>
               <button 
                 onClick={() => setShowEmailForm(false)}
                 className="w-full text-[#888] text-sm pt-2"
               >
-                Geri Dön
+                Geri Don
               </button>
             </motion.div>
           ) : (
-            /* Normal Sosyal Giriş Butonları */
+            /* Normal Sosyal Giris Butonlari */
             <>
               <motion.button
                 className="pill-btn w-full flex items-center justify-center gap-3 text-black font-semibold"
@@ -273,7 +275,7 @@ export default function LoginScreen() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
                 </svg>
-                Apple ile Giriş Yapın
+                Apple ile Giris Yapin
               </motion.button>
 
               <motion.button
@@ -292,7 +294,7 @@ export default function LoginScreen() {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Google ile Giriş Yapın
+                Google ile Giris Yapin
               </motion.button>
 
               <motion.button
@@ -305,7 +307,7 @@ export default function LoginScreen() {
                 whileTap={{ scale: 0.97 }}
                 disabled={isLoading}
               >
-                Diğer Seçenekler (E-Posta)
+                Diger Secenekler (E-Posta)
               </motion.button>
             </>
           )}
@@ -317,7 +319,7 @@ export default function LoginScreen() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7, duration: 0.4 }}
           >
-            Giriş yaparak kullanım koşullarını, gizlilik sözleşmesini ve Vante topluluk ilkelerini kabul etmiş sayılırsınız.
+            Giris yaparak kullanim kosullarini, gizlilik sozlesmesini ve Vante topluluk ilkelerini kabul etmis sayilirsiniz.
           </motion.p>
         </div>
       </motion.div>
