@@ -14,13 +14,7 @@ const SpotifyIcon = ({ className }: { className?: string }) => (
 );
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://localhost:3000/feed';
 
-/**
- * Vercel Serverless Function endpoint
- * Gelistirme: /api/spotify-token (vercel dev ile calisir)
- * Production: https://your-app.vercel.app/api/spotify-token
- */
 const SPOTIFY_TOKEN_URL = import.meta.env.VITE_SPOTIFY_TOKEN_URL || '/api/spotify-token';
 
 export default function SpotifyConnectScreen() {
@@ -47,10 +41,13 @@ export default function SpotifyConnectScreen() {
         'user-read-playback-state', 'user-modify-playback-state',
       ].join(' ');
 
+      // DINAMIK: Mevcut domain'i otomatik al
+      const redirectUri = `${window.location.origin}/`;
+
       const authUrl = new URL('https://accounts.spotify.com/authorize');
       authUrl.searchParams.set('client_id', CLIENT_ID);
       authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
       authUrl.searchParams.set('scope', scopes);
       authUrl.searchParams.set('code_challenge_method', 'S256');
       authUrl.searchParams.set('code_challenge', codeChallenge);
@@ -80,10 +77,9 @@ export default function SpotifyConnectScreen() {
 
           try {
             const tokenRes = await fetch(SPOTIFY_TOKEN_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                code: authCode, redirect_uri: REDIRECT_URI, code_verifier: storedVerifier,
+                code: authCode, redirect_uri: redirectUri, code_verifier: storedVerifier,
               }),
             });
 
@@ -98,10 +94,8 @@ export default function SpotifyConnectScreen() {
 
             if (user?.uid) {
               await updateDoc(doc(db, 'users', user.uid), {
-                isSpotifyConnected: true,
-                spotifyAccessToken: tokenData.access_token,
-                spotifyRefreshToken: tokenData.refresh_token || null,
-                onboardingStep: 6,
+                isSpotifyConnected: true, spotifyAccessToken: tokenData.access_token,
+                spotifyRefreshToken: tokenData.refresh_token || null, onboardingStep: 6,
               });
             }
 
@@ -125,11 +119,7 @@ export default function SpotifyConnectScreen() {
       window.addEventListener('message', handleMessage);
 
       const checkClosed = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', handleMessage);
-          setIsConnecting(false);
-        }
+        if (popup?.closed) { clearInterval(checkClosed); window.removeEventListener('message', handleMessage); setIsConnecting(false); }
       }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bilinmeyen hata');
@@ -139,11 +129,8 @@ export default function SpotifyConnectScreen() {
 
   const handleSkip = async () => {
     if (user?.uid) {
-      try {
-        await updateDoc(doc(db, 'users', user.uid), {
-          isSpotifyConnected: false, onboardingStep: 6,
-        });
-      } catch (err) { console.error('Skip hatasi:', err); }
+      try { await updateDoc(doc(db, 'users', user.uid), { isSpotifyConnected: false, onboardingStep: 6 }); }
+      catch (err) { console.error('Skip hatasi:', err); }
     }
     setOnboardingStep(6);
     navigate('/feed');
