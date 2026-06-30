@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "preinstall": "npm config set ignore-scripts true",
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
