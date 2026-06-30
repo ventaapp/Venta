@@ -1,11 +1,12 @@
 /**
  * Spotify Token Exchange Proxy Server
- * 
- * Bu basit Express server, Spotify Authorization Code Flow'da
- * CORS sorununu çözmek için token exchange yapar.
- * 
- * Çalıştırma: npm run proxy (veya node proxy-server.js)
- * Port: 3001 (varsayılan)
+ *
+ * GELISTIRME: HTTP (localhost:3001) - Vite HTTPS proxy uzerinden erisilir
+ * PRODUCTION: HTTPS olmalidir (reverse proxy veya Node.js native https ile)
+ *
+ * Calistirma:
+ *   npm run proxy  (sadece proxy)
+ *   npm run dev    (proxy + vite birlikte)
  */
 
 import express from 'express';
@@ -39,7 +40,7 @@ app.post('/api/spotify/token', async (req, res) => {
       redirect_uri,
     });
 
-    // PKCE kullanılıyorsa code_verifier ekle
+    // PKCE kullaniliyorsa code_verifier ekle
     if (code_verifier) {
       params.append('code_verifier', code_verifier);
     }
@@ -124,4 +125,6 @@ app.post('/api/spotify/refresh', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Spotify Proxy Server http://localhost:${PORT}`);
+  console.log(`Token exchange: http://localhost:${PORT}/api/spotify/token`);
+  console.log(`Token refresh:  http://localhost:${PORT}/api/spotify/refresh`);
 });
