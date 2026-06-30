@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music, Bell } from 'lucide-react';
+import { Music, Bell, Play, Pause } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { useSpotifyPlayback } from '../hooks/useSpotifyPlayback';
+import SpotifyPlaybackModal from '../components/SpotifyPlaybackModal';
 import BottomNav from '../components/BottomNav';
 import { FeedSkeleton } from '../components/skeletons';
 import ParticleBurst from '../components/ParticleBurst';
@@ -24,13 +26,16 @@ export type FeedVehicle = {
 };
 
 export default function MainFeedScreen() {
-  const { user } = useStore();
+  const { user, isSpotifyConnected } = useStore();
   const navigate = useNavigate();
+  const { isPlaying, currentTrackId, searchAndPlay, initializePlayer } = useSpotifyPlayback();
 
   const [feedVehicles, setFeedVehicles] = useState<FeedVehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [particles, setParticles] = useState<{ id: number; originX: number; originY: number }[]>([]);
   const [feedTab, setFeedTab] = useState<'explore' | 'following'>('explore');
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [playingVehicleId, setPlayingVehicleId] = useState<string | null>(null);
 
   // FIREBASE'DEN ARACLARI CEK
   useEffect(() => {
@@ -67,9 +72,32 @@ export default function MainFeedScreen() {
     fetchVehicles();
   }, [user?.uid]);
 
-  const openInSpotify = (songName: string) => {
-    const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(songName)}`;
-    window.open(spotifyUrl, '_blank');
+  // Player'ı Spotify bağlıysa başlat
+  useEffect(() => {
+    if (isSpotifyConnected) {
+      initializePlayer();
+    }
+  }, [isSpotifyConnected, initializePlayer]);
+
+  const handleMusicClick = async (vehicle: FeedVehicle) => {
+    if (!isSpotifyConnected) {
+      // Senaryo B: Spotify bağlı değilse modal aç
+      setShowConnectModal(true);
+      return;
+    }
+
+    // Senaryo A: Spotify bağlıysa uygulama içinde çal
+    if (playingVehicleId === vehicle.id && isPlaying) {
+      // Zaten çalıyorsa durdur
+      setPlayingVehicleId(null);
+      return;
+    }
+
+    setPlayingVehicleId(vehicle.id);
+    const success = await searchAndPlay(vehicle.song);
+    if (!success) {
+      setPlayingVehicleId(null);
+    }
   };
 
   const handleMasallah = async (e: React.MouseEvent, targetId: string) => {
@@ -205,15 +233,20 @@ export default function MainFeedScreen() {
                   className="w-full h-full object-cover"
                 />
 
+                {/* Music Button - Updated */}
                 <button
                   type="button"
-                  onClick={() => openInSpotify(vehicle.song)}
+                  onClick={() => handleMusicClick(vehicle)}
                   className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full max-w-[85%] cursor-pointer active:scale-95 transition-transform"
                   style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}
                 >
-                  <Music size={14} className="text-white flex-shrink-0" strokeWidth={2} />
+                  {playingVehicleId === vehicle.id && isPlaying ? (
+                    <Pause size={14} className="text-white flex-shrink-0" strokeWidth={2} />
+                  ) : (
+                    <Music size={14} className="text-white flex-shrink-0" strokeWidth={2} />
+                  )}
                   <span className="text-white text-[12px] font-medium tracking-wide truncate">
-                    {vehicle.song}
+                    {playingVehicleId === vehicle.id && isPlaying ? 'Çalıyor...' : vehicle.song}
                   </span>
                 </button>
               </div>
@@ -248,6 +281,12 @@ export default function MainFeedScreen() {
           />
         ))}
       </AnimatePresence>
+
+      {/* Spotify Connect Modal */}
+      <SpotifyPlaybackModal
+        isOpen={showConnectModal}
+        onClose={() => setShowConnectModal(false)}
+      />
 
       <BottomNav />
     </div>
