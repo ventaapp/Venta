@@ -7,10 +7,8 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 /**
  * Vante - Vite HTTPS Development Server
  * 
- * Local gelistirme icin otomatik self-signed SSL sertifikasi uretir.
- * Capacitor mobil uygulama ile HTTPS baglantisi saglar.
- * 
- * Production'da bu ayarlara gerek yoktur - Firebase/hosting zaten HTTPS saglar.
+ * Vercel'de deploy edilirken bu config Vite build icin kullanilir.
+ * Proxy ayarlari Vercel Serverless Functions (/api/*) tarafindan otomatik karsilanir.
  */
 export default defineConfig({
   base: './',
@@ -22,12 +20,6 @@ export default defineConfig({
   server: {
     port: 3000,
     https: true,
-    proxy: {
-      '/api/spotify': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-    },
   },
   resolve: {
     alias: {
