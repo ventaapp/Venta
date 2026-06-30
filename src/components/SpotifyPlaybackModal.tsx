@@ -1,5 +1,10 @@
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
+import { useStore } from '../store/useStore';
+import { db } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { generatePKCE } from '../lib/pkce';
 
 interface SpotifyPlaybackModalProps {
   isOpen: boolean;
@@ -15,47 +20,132 @@ const SpotifyIcon = ({ className }: { className?: string }) => (
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
 const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'http://localhost:3000/feed';
-
-function getSpotifyAuthUrl(): string {
-  const scopes = [
-    'streaming',
-    'user-read-email',
-    'user-read-private',
-    'user-read-playback-state',
-    'user-modify-playback-state',
-  ].join(' ');
-
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: 'token',
-    redirect_uri: REDIRECT_URI,
-    scope: scopes,
-    show_dialog: 'true',
-  });
-
-  return `https://accounts.spotify.com/authorize?${params.toString()}`;
-}
+const PROXY_API_URL = import.meta.env.VITE_SPOTIFY_PROXY_URL || '/api/spotify';
 
 export default function SpotifyPlaybackModal({
   isOpen,
   onClose,
 }: SpotifyPlaybackModalProps) {
-  const handleConnect = () => {
-    if (!CLIENT_ID) return;
+  const { user, setIsSpotifyConnected, setSpotifyAccessToken } = useStore();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    const width = 500;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+  const handleConnect = useCallback(async () => {
+    if (!CLIENT_ID) {
+      setError('Spotify Client ID ayarlanmamis');
+      return;
+    }
 
-    window.open(
-      getSpotifyAuthUrl(),
-      'spotify-auth',
-      `width=${width},height=${height},top=${top},left=${left},popup=1`
-    );
+    setIsConnecting(true);
+    setError(null);
 
-    onClose();
-  };
+    try {
+      // PKCE üret
+      const { codeVerifier, codeChallenge } = await generatePKCE();
+      const state = btoa(codeVerifier);
+
+      const scopes = [
+        'streaming',
+        'user-read-email',
+        'user-read-private',
+        'user-read-playback-state',
+        'user-modify-playback-state',
+      ].join(' ');
+
+      const authUrl = new URL('https://accounts.spotify.com/authorize');
+      authUrl.searchParams.set('client_id', CLIENT_ID);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+      authUrl.searchParams.set('scope', scopes);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('state', state);
+
+      const width = 500;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+
+      const popup = window.open(
+        authUrl.toString(),
+        'spotify-auth',
+        `width=${width},height=${height},top=${top},left=${left},popup=1`
+      );
+
+      if (!popup) {
+        setError('Popup engellendi');
+        setIsConnecting(false);
+        return;
+      }
+
+      const handleMessage = async (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+
+        if (event.data?.type === 'SPOTIFY_AUTH_CODE') {
+          const { code: authCode, state: returnedState } = event.data;
+          const storedVerifier = atob(returnedState || '');
+
+          try {
+            const tokenRes = await fetch(`${PROXY_API_URL}/token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                code: authCode,
+                redirect_uri: REDIRECT_URI,
+                code_verifier: storedVerifier,
+              }),
+            });
+
+            const tokenData = await tokenRes.json();
+
+            if (!tokenRes.ok || tokenData.error) {
+              throw new Error(tokenData.error_description || tokenData.error || 'Token alinamadi');
+            }
+
+            setSpotifyAccessToken(tokenData.access_token);
+            setIsSpotifyConnected(true);
+
+            if (user?.uid) {
+              await updateDoc(doc(db, 'users', user.uid), {
+                isSpotifyConnected: true,
+                spotifyAccessToken: tokenData.access_token,
+                spotifyRefreshToken: tokenData.refresh_token || null,
+              });
+            }
+
+            onClose();
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Baglanti basarisiz';
+            setError(msg);
+          } finally {
+            setIsConnecting(false);
+            window.removeEventListener('message', handleMessage);
+          }
+        }
+
+        if (event.data?.type === 'SPOTIFY_AUTH_ERROR') {
+          setError(`Spotify hatasi: ${event.data.error}`);
+          setIsConnecting(false);
+          window.removeEventListener('message', handleMessage);
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          window.removeEventListener('message', handleMessage);
+          setIsConnecting(false);
+        }
+      }, 1000);
+
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Bilinmeyen hata';
+      setError(msg);
+      setIsConnecting(false);
+    }
+  }, [user, setIsSpotifyConnected, setSpotifyAccessToken, onClose]);
 
   return (
     <AnimatePresence>
@@ -95,27 +185,35 @@ export default function SpotifyPlaybackModal({
             <h3 className="text-lg font-semibold text-white mb-2">
               Spotify Gerekli
             </h3>
-            <p className="text-[#8e8e93] text-sm mb-6 leading-relaxed">
-              Bu içeriği dinleyebilmek için Spotify hesabınızı bağlamanız
-              gerekmektedir.
+            <p className="text-[#8e8e93] text-sm mb-4 leading-relaxed">
+              Bu icerigi dinleyebilmek icin Spotify hesabinizi baglamaniz gerekmektedir.
             </p>
+
+            {/* Error */}
+            {error && (
+              <div className="mb-4 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-red-400 text-xs">{error}</p>
+              </div>
+            )}
 
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleConnect}
-                disabled={!CLIENT_ID}
+                disabled={isConnecting || !CLIENT_ID}
                 className="bg-white hover:bg-gray-200 text-black text-sm font-semibold
                            py-3 rounded-full transition-colors duration-200
-                           disabled:opacity-50 disabled:cursor-not-allowed"
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           flex items-center justify-center gap-2"
               >
-                {!CLIENT_ID ? 'Spotify ID ayarlanmadı' : 'Spotify ile Bağlan'}
+                {isConnecting && <Loader2 size={16} className="animate-spin" />}
+                {!CLIENT_ID ? 'Spotify ID ayarlanmadi' : isConnecting ? 'Baglaniyor...' : 'Spotify ile Baglan'}
               </button>
               <button
                 onClick={onClose}
                 className="bg-transparent hover:bg-white/5 text-[#8e8e93] text-sm font-medium
                            py-3 rounded-full transition-colors duration-200"
               >
-                Vazgeç
+                Vazgec
               </button>
             </div>
           </motion.div>
