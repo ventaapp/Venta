@@ -15,12 +15,12 @@ const SpotifyIcon = ({ className }: { className?: string }) => (
 );
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'http://localhost:3000/feed';
+const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://localhost:3000/feed';
 
 /**
  * Proxy API URL:
- * - Geliştirme: Vite proxy üzerinden /api/spotify/token (vite.config.ts'de ayarlı)
- * - Production: PROXY_API_URL env variable'ından
+ * - Gelistirme: Vite proxy uzerinden /api/spotify/token (vite.config.ts'de ayarli)
+ * - Production: PROXY_API_URL env variable'indan
  */
 const PROXY_API_URL = import.meta.env.VITE_SPOTIFY_PROXY_URL || '/api/spotify';
 
@@ -32,11 +32,11 @@ export default function SpotifyConnectScreen() {
 
   /**
    * Spotify OAuth Authorization Code Flow + PKCE
-   * 1. PKCE code_challenge/code_verifier üret
-   * 2. Spotify authorize URL'sine yönlendir (popup)
+   * 1. PKCE code_challenge/code_verifier uret
+   * 2. Spotify authorize URL'sine yonlendir (popup)
    * 3. Callback'te code'u al
-   * 4. Proxy API üzerinden token exchange yap
-   * 5. Token'ı Firebase'e kaydet
+   * 4. Proxy API uzerinden token exchange yap
+   * 5. Token'i Firebase'e kaydet
    */
   const handleConnect = useCallback(async () => {
     if (!CLIENT_ID) {
@@ -48,7 +48,7 @@ export default function SpotifyConnectScreen() {
     setError(null);
 
     try {
-      // 1. PKCE üret
+      // 1. PKCE uret
       const { codeVerifier, codeChallenge } = await generatePKCE();
 
       // code_verifier'i state olarak base64 ile sakla
@@ -72,7 +72,7 @@ export default function SpotifyConnectScreen() {
       authUrl.searchParams.set('code_challenge', codeChallenge);
       authUrl.searchParams.set('state', state);
 
-      // 3. Popup aç
+      // 3. Popup ac
       const width = 500;
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
@@ -97,11 +97,11 @@ export default function SpotifyConnectScreen() {
         if (event.data?.type === 'SPOTIFY_AUTH_CODE') {
           const { code: authCode, state: returnedState } = event.data;
 
-          // code_verifier'i state'den çöz
+          // code_verifier'i state'den coz
           const storedVerifier = atob(returnedState || '');
 
           try {
-            // 5. Proxy API üzerinden token exchange
+            // 5. Proxy API uzerinden token exchange
             const tokenRes = await fetch(`${PROXY_API_URL}/token`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
