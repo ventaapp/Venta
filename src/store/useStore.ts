@@ -42,30 +42,34 @@ interface AppState {
   // Auth
   user: AppUser | null;
   isAuthenticated: boolean;
-  
+
   // Onboarding
   onboardingStep: number;
   tempName: string;
   tempLane: Lane;
   tempPhotos: string[];
   skippedUpload: boolean;
-  
+
+  // Spotify
+  isSpotifyConnected: boolean;
+  spotifyAccessToken: string | null;
+
   // Feed
   feedVehicles: Vehicle[];
   currentIndex: number;
   swipeCount: number;
   showAd: boolean;
   feedEnded: boolean;
-  
+
   // Profile
   profileEditMode: boolean;
-  
+
   // Notifications
   notifications: Notification[];
-  
+
   // Navigation
   currentTab: string;
-  
+
   // Actions
   setUser: (user: AppUser | null) => void;
   setAuthenticated: (val: boolean) => void;
@@ -74,6 +78,8 @@ interface AppState {
   setTempLane: (lane: Lane) => void;
   setTempPhotos: (photos: string[]) => void;
   setSkippedUpload: (skipped: boolean) => void;
+  setIsSpotifyConnected: (connected: boolean) => void;
+  setSpotifyAccessToken: (token: string | null) => void;
   setFeedVehicles: (vehicles: Vehicle[]) => void;
   nextVehicle: () => void;
   resetFeed: () => void;
@@ -88,7 +94,7 @@ interface AppState {
   updateUserPhoto: (url: string) => void;
   addVehiclePhotos: (photos: string[]) => void;
   logout: () => void;
-  
+
   // Feed interactions
   interactions: { vehicleId: string; type: 'like' | 'pass' }[];
   addInteraction: (vehicleId: string, type: 'like' | 'pass') => void;
@@ -177,33 +183,37 @@ export const useStore = create<AppState>((set, get) => ({
   // Auth
   user: null,
   isAuthenticated: false,
-  
+
   // Onboarding
   onboardingStep: 0,
   tempName: '',
   tempLane: null,
   tempPhotos: [],
   skippedUpload: false,
-  
+
+  // Spotify
+  isSpotifyConnected: false,
+  spotifyAccessToken: null,
+
   // Feed
   feedVehicles: mockVehicles,
   currentIndex: 0,
   swipeCount: 0,
   showAd: false,
   feedEnded: false,
-  
+
   // Profile
   profileEditMode: false,
-  
+
   // Notifications
   notifications: mockNotifications,
-  
+
   // Navigation
   currentTab: 'home',
-  
+
   // Interactions
   interactions: [],
-  
+
   setUser: (user) => set({ user }),
   setAuthenticated: (val) => set({ isAuthenticated: val }),
   setOnboardingStep: (step) => set({ onboardingStep: step }),
@@ -211,8 +221,10 @@ export const useStore = create<AppState>((set, get) => ({
   setTempLane: (lane) => set({ tempLane: lane }),
   setTempPhotos: (photos) => set({ tempPhotos: photos }),
   setSkippedUpload: (skipped) => set({ skippedUpload: skipped }),
+  setIsSpotifyConnected: (connected) => set({ isSpotifyConnected: connected }),
+  setSpotifyAccessToken: (token) => set({ spotifyAccessToken: token }),
   setFeedVehicles: (vehicles) => set({ feedVehicles: vehicles }),
-  
+
   nextVehicle: () => {
     const state = get();
     const nextIndex = state.currentIndex + 1;
@@ -222,9 +234,9 @@ export const useStore = create<AppState>((set, get) => ({
       set({ currentIndex: nextIndex });
     }
   },
-  
+
   resetFeed: () => set({ currentIndex: 0, swipeCount: 0, showAd: false, feedEnded: false }),
-  
+
   incrementSwipeCount: () => {
     const state = get();
     const newCount = state.swipeCount + 1;
@@ -233,12 +245,12 @@ export const useStore = create<AppState>((set, get) => ({
       set({ showAd: true });
     }
   },
-  
+
   setShowAd: (show) => set({ showAd: show }),
   setFeedEnded: (ended) => set({ feedEnded: ended }),
   setProfileEditMode: (mode) => set({ profileEditMode: mode }),
   setNotifications: (notifs) => set({ notifications: notifs }),
-  
+
   markNotificationRead: (id) => {
     set((state) => ({
       notifications: state.notifications.map((n) =>
@@ -246,26 +258,26 @@ export const useStore = create<AppState>((set, get) => ({
       ),
     }));
   },
-  
+
   setCurrentTab: (tab) => set({ currentTab: tab }),
-  
+
   updateUserBio: (bio) =>
     set((state) => ({
       user: state.user ? { ...state.user, bio } : null,
     })),
-  
+
   updateUserPhoto: (url) =>
     set((state) => ({
       user: state.user ? { ...state.user, photoURL: url } : null,
     })),
-  
+
   addVehiclePhotos: (photos) =>
     set((state) => ({
       user: state.user
         ? { ...state.user, vehiclePhotos: [...state.user.vehiclePhotos, ...photos], hasVehicle: true }
         : null,
     })),
-  
+
   logout: () =>
     set({
       user: null,
@@ -275,13 +287,15 @@ export const useStore = create<AppState>((set, get) => ({
       tempLane: null,
       tempPhotos: [],
       skippedUpload: false,
+      isSpotifyConnected: false,
+      spotifyAccessToken: null,
       currentIndex: 0,
       swipeCount: 0,
       showAd: false,
       feedEnded: false,
       interactions: [],
     }),
-  
+
   addInteraction: (vehicleId, type) =>
     set((state) => ({
       interactions: [...state.interactions, { vehicleId, type }],

@@ -22,6 +22,7 @@ const NameScreen = lazy(() => import('./screens/NameScreen'));
 const LaneScreen = lazy(() => import('./screens/LaneScreen'));
 const UploadScreen = lazy(() => import('./screens/UploadScreen'));
 const VehicleSpecsScreen = lazy(() => import('./screens/VehicleSpecsScreen'));
+const SpotifyConnectScreen = lazy(() => import('./screens/SpotifyConnectScreen'));
 const MainFeedScreen = lazy(() => import('./screens/MainFeedScreen'));
 const GarageScreen = lazy(() => import('./screens/GarageScreen'));
 const PlusOneScreen = lazy(() => import('./screens/PlusOne'));
@@ -42,7 +43,7 @@ function withSuspense(fallback: React.ReactNode, screen: React.ReactNode) {
 
 function AppRoutes() {
   const { user, onboardingStep } = useStore();
-  
+
   const isAuthenticated = !!user;
 
   // 1. Giris yapilmamissa - Sadece Login goster
@@ -54,8 +55,8 @@ function AppRoutes() {
     );
   }
 
-  // 2. Giris yapilmis ama kayit adimlari (1, 2, 3, 4) bitmemisse
-  if (isAuthenticated && onboardingStep < 5) {
+  // 2. Giris yapilmis ama kayit adimlari (1, 2, 3, 4, 5) bitmemisse
+  if (isAuthenticated && onboardingStep < 6) {
     return (
       <Routes>
         <Route path="/" element={
@@ -63,6 +64,7 @@ function AppRoutes() {
           onboardingStep === 2 ? withSuspense(<OnboardingFormSkeleton lines={3} />, <LaneScreen />) :
           onboardingStep === 3 ? withSuspense(<UploadSkeleton />, <UploadScreen />) :
           onboardingStep === 4 ? withSuspense(<VehicleSpecsSkeleton />, <VehicleSpecsScreen />) :
+          onboardingStep === 5 ? withSuspense(<VehicleSpecsSkeleton />, <SpotifyConnectScreen />) :
           <Navigate to="/feed" replace />
         } />
         <Route path="/*" element={<Navigate to="/" replace />} />
@@ -90,14 +92,14 @@ function AppRoutes() {
 
 export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const { setUser, setOnboardingStep, logout } = useStore();
+  const { setUser, setOnboardingStep, setIsSpotifyConnected, logout } = useStore();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          
+
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUser({
@@ -106,6 +108,7 @@ export default function App() {
               ...userData
             });
             setOnboardingStep(userData.onboardingStep || 5);
+            setIsSpotifyConnected(userData.isSpotifyConnected || false);
           } else {
             setUser({ uid: firebaseUser.uid, email: firebaseUser.email });
             setOnboardingStep(1);
@@ -118,12 +121,12 @@ export default function App() {
       } else {
         logout();
       }
-      
+
       setIsAuthReady(true);
     });
 
     return () => unsubscribe();
-  }, [setUser, setOnboardingStep, logout]);
+  }, [setUser, setOnboardingStep, setIsSpotifyConnected, logout]);
 
   if (!isAuthReady) {
     return (
