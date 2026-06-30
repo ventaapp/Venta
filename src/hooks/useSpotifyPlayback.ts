@@ -152,6 +152,69 @@ export function useSpotifyPlayback() {
     [state.deviceId, spotifyAccessToken]
   );
 
+  /**
+   * Şarkı adıyla Spotify'da arama yapıp ilk sonucu çal
+   */
+  const searchAndPlay = useCallback(
+    async (query: string) => {
+      if (!spotifyAccessToken) {
+        setState((prev) => ({ ...prev, error: 'Spotify token yok' }));
+        return false;
+      }
+
+      try {
+        // 1. Şarkıyı ara
+        const searchRes = await fetch(
+          `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`,
+          {
+            headers: { Authorization: `Bearer ${spotifyAccessToken}` },
+          }
+        );
+
+        if (!searchRes.ok) {
+          throw new Error('Arama başarısız');
+        }
+
+        const searchData = await searchRes.json();
+        const track = searchData.tracks?.items?.[0];
+
+        if (!track) {
+          setState((prev) => ({ ...prev, error: 'Şarkı bulunamadı' }));
+          return false;
+        }
+
+        // 2. Player hazır değilse başlat
+        if (!playerRef.current) {
+          initializePlayer();
+          // Device ID alınana kadar bekle (max 5 saniye)
+          let attempts = 0;
+          while (!playerRef.current && attempts < 50) {
+            await new Promise((r) => setTimeout(r, 100));
+            attempts++;
+          }
+          // Biraz daha bekle ki device_id gelsin
+          await new Promise((r) => setTimeout(r, 500));
+        }
+
+        if (!state.deviceId && !playerRef.current) {
+          setState((prev) => ({ ...prev, error: 'Player başlatılamadı' }));
+          return false;
+        }
+
+        // 3. Çal
+        const trackUri = `spotify:track:${track.id}`;
+        return await playTrack(trackUri);
+      } catch (err) {
+        setState((prev) => ({
+          ...prev,
+          error: err instanceof Error ? err.message : 'Arama/çalma hatası',
+        }));
+        return false;
+      }
+    },
+    [spotifyAccessToken, initializePlayer, playTrack, state.deviceId]
+  );
+
   const togglePlayback = useCallback(async () => {
     const player = playerRef.current;
     if (!player) return false;
@@ -191,6 +254,7 @@ export function useSpotifyPlayback() {
     ...state,
     initializePlayer,
     playTrack,
+    searchAndPlay,
     togglePlayback,
     disconnect,
   };
