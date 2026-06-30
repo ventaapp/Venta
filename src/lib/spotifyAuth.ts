@@ -1,27 +1,25 @@
 /**
- * Spotify OAuth Implicit Grant Flow - Callback Handler
- * 
- * Bu dosyayı feed sayfasında (veya redirect URI olarak belirtilen sayfada)
- * import edin. Popup'tan dönen token'ı yakalar ve parent pencereye iletir.
- * 
+ * Spotify OAuth Authorization Code Flow - Callback Handler (PKCE)
+ *
+ * Bu dosyayı redirect URI olarak belirtilen sayfada (örn. /feed)
+ * import edin. Popup'tan dönen code'u yakalar ve parent pencereye ilet.
+ *
  * Kullanım: MainFeedScreen.tsx (veya redirect URI sayfası) içinde:
- * import '@/lib/spotifyAuth'; // Sadece import et, side-effect çalışır
+ * import '../lib/spotifyAuth'; // Sadece import et, side-effect çalışır
  */
 
 (function () {
-  // Sadece popup/redirect sayfasında çalıştır
-  const hash = window.location.hash;
-  if (!hash) return;
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  const error = urlParams.get('error');
+  const state = urlParams.get('state');
 
-  const params = new URLSearchParams(hash.substring(1));
-  const accessToken = params.get('access_token');
-  const error = params.get('error');
-
-  if (accessToken) {
-    // Parent pencereye token'ı ilet
+  // URL'den code parametresi varsa (Spotify callback)
+  if (code) {
+    // Parent pencereye code'u ilet
     if (window.opener) {
       window.opener.postMessage(
-        { type: 'SPOTIFY_AUTH_SUCCESS', access_token: accessToken },
+        { type: 'SPOTIFY_AUTH_CODE', code, state },
         window.location.origin
       );
       window.close();
