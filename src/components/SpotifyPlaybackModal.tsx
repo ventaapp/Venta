@@ -19,7 +19,7 @@ const SpotifyIcon = ({ className }: { className?: string }) => (
 );
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'http://localhost:3000/feed';
+const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://localhost:3000/feed';
 const PROXY_API_URL = import.meta.env.VITE_SPOTIFY_PROXY_URL || '/api/spotify';
 
 export default function SpotifyPlaybackModal({
@@ -40,7 +40,7 @@ export default function SpotifyPlaybackModal({
     setError(null);
 
     try {
-      // PKCE üret
+      // PKCE uret
       const { codeVerifier, codeChallenge } = await generatePKCE();
       const state = btoa(codeVerifier);
 
