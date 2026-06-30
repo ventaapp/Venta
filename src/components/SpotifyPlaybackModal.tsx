@@ -18,7 +18,6 @@ const SpotifyIcon = ({ className }: { className?: string }) => (
 );
 
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://localhost:3000/feed';
 const SPOTIFY_TOKEN_URL = import.meta.env.VITE_SPOTIFY_TOKEN_URL || '/api/spotify-token';
 
 export default function SpotifyPlaybackModal({ isOpen, onClose }: SpotifyPlaybackModalProps) {
@@ -41,10 +40,13 @@ export default function SpotifyPlaybackModal({ isOpen, onClose }: SpotifyPlaybac
         'user-read-playback-state', 'user-modify-playback-state',
       ].join(' ');
 
+      // DINAMIK: Mevcut domain'i otomatik al
+      const redirectUri = `${window.location.origin}/`;
+
       const authUrl = new URL('https://accounts.spotify.com/authorize');
       authUrl.searchParams.set('client_id', CLIENT_ID);
       authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
       authUrl.searchParams.set('scope', scopes);
       authUrl.searchParams.set('code_challenge_method', 'S256');
       authUrl.searchParams.set('code_challenge', codeChallenge);
@@ -71,7 +73,7 @@ export default function SpotifyPlaybackModal({ isOpen, onClose }: SpotifyPlaybac
           try {
             const tokenRes = await fetch(SPOTIFY_TOKEN_URL, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: authCode, redirect_uri: REDIRECT_URI, code_verifier: storedVerifier }),
+              body: JSON.stringify({ code: authCode, redirect_uri: redirectUri, code_verifier: storedVerifier }),
             });
             const tokenData = await tokenRes.json();
 
