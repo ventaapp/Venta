@@ -15,7 +15,7 @@ export default defineConfig({
   },
   build: {
     // Production build için optimizasyon
-    minify: 'terser',
+    minify: 'esbuild',
     sourcemap: false,
     rollupOptions: {
       output: {
@@ -26,6 +26,9 @@ export default defineConfig({
           'framer': ['framer-motion'],
         },
       },
+    },
+    commonjsOptions: {
+      transformMixedEsModules: true,
     },
   },
 });

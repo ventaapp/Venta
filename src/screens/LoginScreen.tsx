@@ -145,7 +145,14 @@ export default function LoginScreen() {
 
   // Native ortamda redirect sonucunu yakala
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    let isNative = false;
+    try {
+      isNative = Capacitor.isNativePlatform();
+    } catch (e) {
+      isNative = false;
+    }
+    
+    if (!isNative) return;
 
     const checkRedirectResult = async () => {
       try {
@@ -174,7 +181,12 @@ export default function LoginScreen() {
         return;
       }
 
-      const isNative = Capacitor.isNativePlatform();
+      let isNative = false;
+      try {
+        isNative = Capacitor.isNativePlatform();
+      } catch (e) {
+        isNative = false;
+      }
 
       if (isNative) {
         // Native ortamda: signInWithRedirect kullan (popup native'de çalışmaz)

@@ -162,31 +162,35 @@ export default function SettingsScreen() {
 
       case 'terms':
         // Native ortamda Capacitor Browser, web'de window.open
-        try {
-          const { Capacitor } = await import('@capacitor/core');
-          if (Capacitor.isNativePlatform()) {
-            const { Browser } = await import('@capacitor/browser');
-            await Browser.open({ url: `${import.meta.env.VITE_APP_URL || 'https://vante.vercel.app'}/legal/terms.html` });
-          } else {
+        (async () => {
+          try {
+            const { Capacitor } = await import('@capacitor/core');
+            if (Capacitor.isNativePlatform()) {
+              const { Browser } = await import('@capacitor/browser');
+              await Browser.open({ url: `${import.meta.env.VITE_APP_URL || 'https://vante.vercel.app'}/legal/terms.html` });
+            } else {
+              window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
+            }
+          } catch {
             window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
           }
-        } catch {
-          window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
-        }
+        })();
         break;
 
       case 'privacy':
-        try {
-          const { Capacitor } = await import('@capacitor/core');
-          if (Capacitor.isNativePlatform()) {
-            const { Browser } = await import('@capacitor/browser');
-            await Browser.open({ url: `${import.meta.env.VITE_APP_URL || 'https://vante.vercel.app'}/legal/privacy.html` });
-          } else {
+        (async () => {
+          try {
+            const { Capacitor } = await import('@capacitor/core');
+            if (Capacitor.isNativePlatform()) {
+              const { Browser } = await import('@capacitor/browser');
+              await Browser.open({ url: `${import.meta.env.VITE_APP_URL || 'https://vante.vercel.app'}/legal/privacy.html` });
+            } else {
+              window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
+            }
+          } catch {
             window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
           }
-        } catch {
-          window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
-        }
+        })();
         break;
 
       case 'profile_edit':

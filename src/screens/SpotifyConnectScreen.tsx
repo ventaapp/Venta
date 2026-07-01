@@ -34,8 +34,20 @@ export default function SpotifyConnectScreen() {
 
     const setupListener = async () => {
       try {
-        const { App } = await import('@capacitor/app');
-        const { Browser } = await import('@capacitor/browser');
+        let App;
+        try {
+          App = (await import('@capacitor/app')).App;
+        } catch (e) {
+          console.warn('Capacitor App plugin not available in web build');
+          return;
+        }
+
+        let Browser;
+        try {
+          Browser = (await import('@capacitor/browser')).Browser;
+        } catch (e) {
+          console.warn('Capacitor Browser plugin not available in web build');
+        }
 
         const listener = await App.addListener('appUrlOpen', async (data) => {
           const url = data.url;
@@ -147,12 +159,18 @@ export default function SpotifyConnectScreen() {
 
       if (isNative) {
         // Native: Capacitor Browser plugin ile in-app browser aç
-        const { Browser } = await import('@capacitor/browser');
-        await Browser.open({
-          url: authUrl.toString(),
-          windowName: '_self',
-          presentationStyle: 'popover',
-        });
+        try {
+          const { Browser } = await import('@capacitor/browser');
+          await Browser.open({
+            url: authUrl.toString(),
+            windowName: '_self',
+            presentationStyle: 'popover',
+          });
+        } catch (e) {
+          console.error('Failed to open native browser:', e);
+          setError('Native tarayıcı açılamadı.');
+          setIsConnecting(false);
+        }
         // Callback appUrlOpen event'i ile yakalanacak (yukarıdaki useEffect)
       } else {
         // Web: Popup ile OAuth akışı
