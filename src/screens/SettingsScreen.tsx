@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Flag, Bell, Info, Trash2, LogOut, Plus, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -10,6 +11,9 @@ import { signOut, deleteUser } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { deleteUserData } from '../lib/accountDeletion';
 
+// Uygulama sürümü - package.json ile senkronize
+const APP_VERSION = '1.0.0';
+
 interface SettingItem {
   id: string;
   label: string;
@@ -18,43 +22,138 @@ interface SettingItem {
   isDanger?: boolean;
 }
 
+interface ConfirmDialog {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  isDanger?: boolean;
+}
+
+// Native uyumlu onay dialog bileşeni
+function ConfirmDialog({ dialog, onClose }: { dialog: ConfirmDialog; onClose: () => void }) {
+  if (!dialog.isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pb-8">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        className="relative w-full max-w-[400px] bg-[#1c1c1e] rounded-2xl overflow-hidden"
+      >
+        <div className="px-6 pt-6 pb-4 text-center">
+          <h3 className="text-white text-[17px] font-semibold mb-2">{dialog.title}</h3>
+          <p className="text-[#8e8e93] text-[14px] leading-relaxed">{dialog.message}</p>
+        </div>
+        <div className="border-t border-[#333]">
+          <button
+            onClick={() => { dialog.onConfirm(); onClose(); }}
+            className={`w-full py-4 text-[17px] font-medium border-b border-[#333] transition-colors active:bg-[#2c2c2e] ${dialog.isDanger ? 'text-[#ff3b30]' : 'text-[#3b82f6]'}`}
+          >
+            Onayla
+          </button>
+          <button
+            onClick={onClose}
+            className="w-full py-4 text-[17px] font-medium text-white transition-colors active:bg-[#2c2c2e]"
+          >
+            İptal
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// Native uyumlu bilgi toast bileşeni
+function InfoToast({ message, onClose }: { message: string | null; onClose: () => void }) {
+  if (!message) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="fixed top-16 left-4 right-4 z-50 max-w-[400px] mx-auto"
+    >
+      <div className="bg-[#1c1c1e] border border-[#333] rounded-2xl px-5 py-4 shadow-2xl">
+        <p className="text-white text-[14px] text-center leading-relaxed">{message}</p>
+        <button
+          onClick={onClose}
+          className="w-full mt-3 text-[#3b82f6] text-[14px] font-medium"
+        >
+          Tamam
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function SettingsScreen() {
   const { user, setUser, logout } = useStore();
-  
+  const navigate = useNavigate();
+
   // Veritabanındaki değere göre (yoksa varsayılan olarak true) başlat
   const [notifToggle, setNotifToggle] = useState(user?.notificationsEnabled !== false);
+
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+    setConfirmDialog({ isOpen: true, title, message, onConfirm, isDanger });
+  };
+
+  const showInfo = (message: string) => {
+    setInfoMessage(message);
+  };
 
   const handleAction = async (id: string) => {
     switch (id) {
       case 'logout':
-        if (window.confirm('Oturumu kapatmak istediğinize emin misiniz?')) {
-          try {
-            await signOut(auth); // Firebase'den çıkış
-            logout(); // Zustand Store'u temizle (Seni Login'e atacaktır)
-          } catch (error) {
-            console.error("Çıkış yapılırken hata oluştu:", error);
+        showConfirm(
+          'Oturumu Kapat',
+          'Oturumu kapatmak istediğinize emin misiniz?',
+          async () => {
+            try {
+              await signOut(auth);
+              logout();
+            } catch (error) {
+              console.error('Çıkış yapılırken hata oluştu:', error);
+              showInfo('Çıkış yapılırken bir hata oluştu. Lütfen tekrar deneyin.');
+            }
           }
-        }
+        );
         break;
 
       case 'delete_account':
-        if (window.confirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) {
-          try {
-            if (auth.currentUser && user?.uid) {
-              await deleteUserData(user.uid);
-              await deleteUser(auth.currentUser);
-              logout();
+        showConfirm(
+          'Hesabı Kalıcı Olarak Sil',
+          'Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz!',
+          async () => {
+            try {
+              if (auth.currentUser && user?.uid) {
+                await deleteUserData(user.uid);
+                await deleteUser(auth.currentUser);
+                logout();
+              }
+            } catch (error: unknown) {
+              const firebaseError = error as { code?: string };
+              if (firebaseError.code === 'auth/requires-recent-login') {
+                showInfo('Güvenlik nedeniyle hesabınızı silebilmek için oturumu kapatıp tekrar giriş yapmanız gerekmektedir.');
+              } else {
+                showInfo('Hesap silinirken bir hata oluştu. Lütfen tekrar deneyin.');
+                console.error(error);
+              }
             }
-          } catch (error: any) {
-            // Firebase güvenlik önlemi: Hesap silmek için "yeni" giriş yapmış olmak gerekir
-            if (error.code === 'auth/requires-recent-login') {
-              alert("Güvenlik nedeniyle hesabınızı silebilmek için oturumu kapatıp tekrar giriş yapmanız gerekmektedir.");
-            } else {
-              alert("Hesap silinirken bir hata oluştu. Lütfen tekrar deneyin.");
-              console.error(error);
-            }
-          }
-        }
+          },
+          true // isDanger
+        );
         break;
 
       case 'notifications':
@@ -62,19 +161,40 @@ export default function SettingsScreen() {
         break;
 
       case 'terms':
-        window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
+        // Native ortamda Capacitor Browser, web'de window.open
+        try {
+          const { Capacitor } = await import('@capacitor/core');
+          if (Capacitor.isNativePlatform()) {
+            const { Browser } = await import('@capacitor/browser');
+            await Browser.open({ url: `${import.meta.env.VITE_APP_URL || 'https://vante.vercel.app'}/legal/terms.html` });
+          } else {
+            window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
+          }
+        } catch {
+          window.open('/legal/terms.html', '_blank', 'noopener,noreferrer');
+        }
         break;
 
       case 'privacy':
-        window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
+        try {
+          const { Capacitor } = await import('@capacitor/core');
+          if (Capacitor.isNativePlatform()) {
+            const { Browser } = await import('@capacitor/browser');
+            await Browser.open({ url: `${import.meta.env.VITE_APP_URL || 'https://vante.vercel.app'}/legal/privacy.html` });
+          } else {
+            window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
+          }
+        } catch {
+          window.open('/legal/privacy.html', '_blank', 'noopener,noreferrer');
+        }
         break;
 
       case 'profile_edit':
-        window.location.href = '/garage';
+        navigate('/garage');
         break;
 
       case 'lane_preferences':
-        window.location.href = '/garage';
+        navigate('/garage');
         break;
 
       default:
@@ -84,8 +204,8 @@ export default function SettingsScreen() {
 
   const handleToggleNotifications = async () => {
     const newState = !notifToggle;
-    setNotifToggle(newState); // Ekranda anında değişsin
-    
+    setNotifToggle(newState);
+
     if (user?.uid) {
       try {
         await updateDoc(doc(db, 'users', user.uid), {
@@ -93,8 +213,8 @@ export default function SettingsScreen() {
         });
         setUser({ ...user, notificationsEnabled: newState });
       } catch (error) {
-        console.error("Bildirim ayarı güncellenemedi:", error);
-        setNotifToggle(!newState); // Hata olursa eski haline geri al
+        console.error('Bildirim ayarı güncellenemedi:', error);
+        setNotifToggle(!newState);
       }
     }
   };
@@ -220,10 +340,22 @@ export default function SettingsScreen() {
             VANTE
           </p>
           <p className="text-[12px]" style={{ color: '#555' }}>
-            Sürüm 1.0.0
+            Sürüm {APP_VERSION}
           </p>
         </div>
       </div>
+
+      {/* Native uyumlu onay dialog */}
+      <ConfirmDialog
+        dialog={confirmDialog}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Native uyumlu bilgi toast */}
+      <InfoToast
+        message={infoMessage}
+        onClose={() => setInfoMessage(null)}
+      />
 
       {/* Bottom Nav */}
       <BottomNav />
